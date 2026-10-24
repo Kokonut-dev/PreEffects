@@ -21,6 +21,7 @@ describe('Homepage & 10-Module Interactive Tutorial Coverage', () => {
   it('renders the PreEffects Application Homepage & StudioProvider cleanly via SSR smoke check', () => {
     const html = renderToStaticMarkup(React.createElement(App));
     expect(html).toContain('PreEffects');
+    expect(html).toContain('v1.0.3');
     expect(html).toContain('data-testid="preeffects-homepage"');
     expect(html).toContain('Interactive Tutorial');
     expect(html).toContain('100% Offline');

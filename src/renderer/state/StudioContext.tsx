@@ -325,7 +325,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [activeView, setActiveViewState] = useState<ActiveAppView>('home');
   const [desktopAppInfo, setDesktopAppInfo] = useState<DesktopAppRuntimeInfo>({
     name: 'PreEffects',
-    version: '1.1.0',
+    version: '1.0.3',
     platform: typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? 'darwin' : 'web',
     arch: 'arm64',
     electronVersion: '',
