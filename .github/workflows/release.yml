@@ -5,9 +5,18 @@ on:
     tags:
       - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional tag (e.g. v1.0.0) to publish/update a GitHub Release; leave blank for dry-run artifacts only"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   package-macos:
@@ -21,20 +30,20 @@ jobs:
           cache: npm
       - run: npm ci || npm install
       - run: npm test
-      - run: npm run build
-      - name: Package macOS Universal Binary
+      - name: Package macOS Universal Targets
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run package:mac
       - uses: actions/upload-artifact@v4
         with:
           name: PreEffects-macOS
+          if-no-files-found: error
           path: |
             release/*.dmg
             release/*.zip
 
   package-windows:
-    name: Package Windows (.exe & .msi)
+    name: Package Windows (.exe, .msi & .zip)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,15 +53,18 @@ jobs:
           cache: npm
       - run: npm ci || npm install
       - run: npm test
-      - run: npm run build
-      - name: Package Windows NSIS & MSI Installers
+      - name: Package Windows NSIS, MSI & ZIP Installers
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run package:win
       - uses: actions/upload-artifact@v4
         with:
           name: PreEffects-Windows
+          if-no-files-found: error
           path: |
             release/*.exe
             release/*.msi
+            release/*.zip
 
   package-linux:
     name: Package Linux (.AppImage, .deb, .rpm)
@@ -64,15 +76,17 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install Linux packaging tools
-        run: sudo apt-get update && sudo apt-get install -y rpm libfuse2
+        run: sudo apt-get update && (sudo apt-get install -y rpm libfuse2t64 || sudo apt-get install -y rpm libfuse2)
       - run: npm ci || npm install
       - run: npm test
-      - run: npm run build
       - name: Package Linux Targets
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run package:linux
       - uses: actions/upload-artifact@v4
         with:
           name: PreEffects-Linux
+          if-no-files-found: error
           path: |
             release/*.AppImage
             release/*.deb
@@ -80,7 +94,7 @@ jobs:
 
   publish-release:
     name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
     needs: [package-macos, package-windows, package-linux]
     runs-on: ubuntu-latest
     steps:
@@ -88,11 +102,24 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: release-artifacts
-      - name: Create GitHub Release
+      - name: Create or Update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          FILES=$(find release-artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \))
-          gh release create "${{ github.ref_name }}" $FILES \
-            --title "PreEffects ${{ github.ref_name }}" \
-            --generate-notes
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          mapfile -t FILES < <(find release-artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) | sort)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No installer artifacts found in release-artifacts/" >&2
+            exit 1
+          fi
+          echo "Publishing ${#FILES[@]} desktop artifacts to release ${TAG}:"
+          printf ' - %s\n' "${FILES[@]}"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" "${FILES[@]}" --clobber
+          else
+            gh release create "${TAG}" "${FILES[@]}" \
+              --title "PreEffects ${TAG}" \
+              --generate-notes
+          fi

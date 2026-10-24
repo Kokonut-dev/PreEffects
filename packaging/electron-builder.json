@@ -2,8 +2,11 @@
   "appId": "dev.preeffects.studio",
   "productName": "PreEffects",
   "copyright": "Copyright © 2026 PreEffects Contributors (MIT)",
+  "publish": null,
+  "npmRebuild": false,
+  "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "directories": {
-    "buildResources": "build",
+    "buildResources": "packaging",
     "output": "release"
   },
   "files": [
@@ -14,11 +17,12 @@
   ],
   "mac": {
     "category": "public.app-category.video",
-    "icon": "build/icons/icon.png",
-    "hardenedRuntime": true,
+    "icon": "packaging/icons/icon.png",
+    "identity": null,
+    "hardenedRuntime": false,
     "gatekeeperAssess": false,
-    "entitlements": "build/entitlements.mac.plist",
-    "entitlementsInherit": "build/entitlements.mac.plist",
+    "entitlements": "packaging/entitlements.mac.plist",
+    "entitlementsInherit": "packaging/entitlements.mac.plist",
     "target": [
       {
         "target": "dmg",
@@ -37,15 +41,23 @@
       }
     ]
   },
+  "dmg": {
+    "sign": false,
+    "writeUpdateInfo": false
+  },
   "win": {
-    "icon": "build/icons/icon.ico",
+    "icon": "packaging/icons/icon.ico",
     "target": [
       {
         "target": "nsis",
-        "arch": ["x64", "arm64"]
+        "arch": ["x64"]
       },
       {
         "target": "msi",
+        "arch": ["x64"]
+      },
+      {
+        "target": "zip",
         "arch": ["x64"]
       }
     ],
@@ -57,23 +69,29 @@
     ]
   },
   "nsis": {
+    "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true
   },
+  "msi": {
+    "artifactName": "${productName}-Installer-${version}-${arch}.${ext}"
+  },
   "linux": {
+    "maintainer": "PreEffects Contributors <maintainers@preeffects.dev>",
+    "vendor": "PreEffects Contributors",
     "category": "AudioVideo;Video;AudioVideoEditing;Graphics;",
-    "icon": "build/icons",
+    "icon": "packaging/icons",
     "synopsis": "Offline-First Motion Graphics & VFX Compositing Workstation",
     "target": [
       {
         "target": "AppImage",
-        "arch": ["x64", "arm64"]
+        "arch": ["x64"]
       },
       {
         "target": "deb",
-        "arch": ["x64", "arm64"]
+        "arch": ["x64"]
       },
       {
         "target": "rpm",
