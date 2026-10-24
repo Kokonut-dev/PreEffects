@@ -1,0 +1,57 @@
+name: CI — Build, Lint & Test
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [22]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci || npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run Unit & Integration Tests
+        run: npm test
+
+      - name: Run Performance Benchmarks
+        run: npm run test:perf
+
+      - name: Build Production Bundle
+        run: npm run build
+
+      - name: Upload Build Artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: preeffects-dist-${{ matrix.os }}
+          path: |
+            dist/
+            dist-electron/
+          retention-days: 7

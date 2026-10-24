@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PreEffects — Stage 4 Interactive UI/UX Prototype (v2)</title>
+  <style>
+    :root {
+      --bg-app: #0b0d11;
+      --bg-panel: #13161c;
+      --bg-header: #1b2029;
+      --bg-elevated: #222834;
+      --bg-selected: #21324a;
+      --border: #283040;
+      --text: #ecf0f7;
+      --muted: #9ba5b7;
+      --amber: #e89b3c;
+      --cyan: #38bdf8;
+      --green: #22c55e;
+    }
+    [data-theme="light"] {
+      --bg-app: #cbd2de;
+      --bg-panel: #f4f6f9;
+      --bg-header: #e1e6ef;
+      --bg-elevated: #ffffff;
+      --bg-selected: #cfe4fa;
+      --border: #c5cfde;
+      --text: #12161f;
+      --muted: #485366;
+      --amber: #be6e0e;
+      --cyan: #0284c7;
+      --green: #15803d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { background: var(--bg-app); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 12px; }
+    .menubar, .toolbar, .statusbar { display: flex; align-items: center; gap: 10px; padding: 0 10px; background: var(--bg-header); border-bottom: 1px solid var(--border); }
+    .menubar { height: 28px; justify-content: space-between; }
+    .toolbar { height: 36px; justify-content: space-between; }
+    .statusbar { height: 24px; border-top: 1px solid var(--border); border-bottom: none; font-family: monospace; font-size: 11px; justify-content: space-between; }
+    button, select, input { background: var(--bg-elevated); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+    button.active, button.primary { background: var(--amber); color: #0b0d11; font-weight: 700; border-color: var(--amber); }
+    .main { flex: 1; display: grid; grid-template-columns: 250px 1fr 310px; gap: 2px; min-height: 0; }
+    .panel { background: var(--bg-panel); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .panel-hdr { height: 28px; background: var(--bg-header); display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-weight: 600; border-top: 2px solid var(--cyan); }
+    .panel-body { padding: 8px; overflow: auto; flex: 1; }
+    .viewer-wrap { flex: 1; background: #08090c; display: flex; align-items: center; justify-content: center; position: relative; }
+    canvas { border: 1px solid #2e3748; max-width: 94%; max-height: 90%; }
+    .bottom { height: 260px; background: var(--bg-panel); border-top: 2px solid var(--bg-app); display: flex; flex-direction: column; }
+    .row { display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .row.sel { background: var(--bg-selected); }
+    .bar { height: 14px; border-radius: 3px; background: rgba(56, 189, 248, 0.35); border: 1px solid var(--cyan); flex: 1; margin-left: 14px; position: relative; }
+    .kf { width: 8px; height: 8px; background: var(--amber); transform: rotate(45deg); position: absolute; top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="menubar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <strong style="color:var(--amber);">PreEffects Prototype v2</strong>
+      <span>Master_Shot ▸ Precomp_Hero</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="newComp()">+ New Comp</button>
+      <button onclick="addLayer()">+ Add Shape Layer</button>
+      <button onclick="toggleTheme()">Toggle Dark/Light</button>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div style="display:flex;gap:4px;">
+      <button class="active">V Move</button>
+      <button>G Pen</button>
+      <button>T Text</button>
+      <button>Roto AI</button>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button id="btnLayers" class="active" onclick="setBottomView('layers')">Layer Stack</button>
+      <button id="btnGraph" onclick="setBottomView('graph')">Unified Graph Editor</button>
+      <button id="btnNodes" onclick="setBottomView('nodes')">Node Graph (DAG)</button>
+      <button id="btnRender" onclick="setBottomView('render')">Render Queue</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="panel">
+      <div class="panel-hdr"><span>Project &amp; Assets</span><span>32-bpc</span></div>
+      <div class="panel-body" id="projectList"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span id="compTitle">Comp: SHOT_040_HERO_TITLE (1920x1080 • 60fps)</span><span id="tcReadout" style="font-family:monospace;color:var(--amber);">00:00:02:12</span></div>
+      <div class="viewer-wrap">
+        <canvas id="stage" width="640" height="360"></canvas>
+      </div>
+      <div style="padding:6px 10px;display:flex;gap:8px;align-items:center;background:var(--bg-header);">
+        <button class="primary" onclick="togglePlay()" id="playBtn">Play</button>
+        <input type="range" id="scrub" min="0" max="100" value="35" style="flex:1;" oninput="onScrub(this.value)" />
+        <span>A/B Wipe:</span>
+        <input type="range" id="wipe" min="0" max="100" value="100" style="width:90px;" oninput="drawStage()" />
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr"><span>Effect Controls &amp; Profiler</span><span style="color:var(--green);font-family:monospace;">2.3 ms</span></div>
+      <div class="panel-body">
+        <div style="margin-bottom:10px;">
+          <label>Glow Radius (<span id="glowVal">32</span>px) — 1.1ms</label>
+          <input type="range" min="0" max="90" value="32" style="width:100%;" oninput="glow=Number(this.value);document.getElementById('glowVal').textContent=glow;drawStage();" />
+        </div>
+        <div style="margin-bottom:10px;">
+          <label>Hue Shift (<span id="hueVal">0</span>deg) — 0.4ms</label>
+          <input type="range" min="-180" max="180" value="0" style="width:100%;" oninput="hue=Number(this.value);document.getElementById('hueVal').textContent=hue;drawStage();" />
+        </div>
+        <div>
+          <label>Title Scale (<span id="scaleVal">100</span>%) + Keyframe</label>
+          <input type="range" min="40" max="180" value="100" style="width:100%;" oninput="scale=Number(this.value);document.getElementById('scaleVal').textContent=scale;drawStage();" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="panel-hdr"><span id="bottomTitle">Timeline — Layer Stack</span><span style="font-family:monospace;color:var(--green);">RAM Cached ● 60fps</span></div>
+    <div class="panel-body" id="bottomBody"></div>
+  </div>
+  <div class="statusbar">
+    <span>Interactive Stage 4 Prototype — Click views above to test workflows</span>
+    <span>100% Offline • Zero Sign-In • Local .prex Format</span>
+  </div>
+
+  <script>
+    let frame = 35, playing = false, glow = 32, hue = 0, scale = 100, bottomView = 'layers';
+    const layers = [
+      { name: '[Txt] PREEFFECTS HERO', mode: 'Normal', cost: '0.9ms', kfs: [12, 48, 82] },
+      { name: '[Shp] Orbital_HUD_Rings', mode: 'Add', cost: '0.8ms', kfs: [20, 75] },
+      { name: '[Adj] ACES_Optical_Glow', mode: 'Screen', cost: '0.6ms', kfs: [10, 90] }
+    ];
+    function toggleTheme() {
+      const root = document.documentElement;
+      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    }
+    function newComp() {
+      const name = 'SHOT_' + Math.floor(100 + Math.random() * 800) + '_COMP';
+      document.getElementById('compTitle').textContent = 'Comp: ' + name + ' (1920x1080 • 60fps)';
+      drawStage();
+    }
+    function addLayer() {
+      layers.unshift({ name: '[Shp] Accent_Trim_' + layers.length, mode: 'Add', cost: '0.4ms', kfs: [15, 65] });
+      renderBottom();
+      drawStage();
+    }
+    function onScrub(v) {
+      frame = Number(v);
+      document.getElementById('tcReadout').textContent = '00:00:0' + Math.floor(frame / 25) + ':' + String(frame % 25).padStart(2, '0');
+      drawStage();
+    }
+    function togglePlay() {
+      playing = !playing;
+      document.getElementById('playBtn').textContent = playing ? 'Pause' : 'Play';
+    }
+    setInterval(() => {
+      if (!playing) return;
+      frame = (frame + 1) % 101;
+      document.getElementById('scrub').value = frame;
+      onScrub(frame);
+    }, 33);
+
+    function setBottomView(v) {
+      bottomView = v;
+      ['Layers','Graph','Nodes','Render'].forEach(id => {
+        document.getElementById('btn' + id).classList.toggle('active', id.toLowerCase().startsWith(v.slice(0,4)));
+      });
+      renderBottom();
+    }
+    function renderBottom() {
+      const el = document.getElementById('bottomBody');
+      const title = document.getElementById('bottomTitle');
+      document.getElementById('projectList').innerHTML = layers.map((l, i) => `<div class="row">${i+1}. ${l.name}</div>`).join('');
+      if (bottomView === 'layers') {
+        title.textContent = 'Timeline — Layer Stack (Synced with Node Graph)';
+        el.innerHTML = layers.map((l, i) => `
+          <div class="row ${i===0?'sel':''}">
+            <span style="width:220px;">${i+1} ${l.name}</span>
+            <span style="width:70px;color:var(--muted);">${l.mode}</span>
+            <span style="width:55px;color:var(--green);font-family:monospace;">${l.cost}</span>
+            <div class="bar">${l.kfs.map(k => `<div class="kf" style="left:${k}%"></div>`).join('')}</div>
+          </div>`).join('');
+      } else if (bottomView === 'graph') {
+        title.textContent = 'Unified Value + Speed Graph Editor';
+        el.innerHTML = `<svg width="100%" height="185" viewBox="0 0 900 185" style="background:#0d1016;border:1px solid var(--border);">
+          <path d="M 40 155 C 210 150, 320 35, 480 35 C 640 35, 740 120, 860 65" fill="none" stroke="#ef4444" stroke-width="2.5"/>
+          <path d="M 40 168 C 200 165, 310 60, 480 130 C 640 165, 740 85, 860 155" fill="none" stroke="#38bdf8" stroke-dasharray="5 3" stroke-width="2"/>
+          <line x1="390" y1="35" x2="570" y2="35" stroke="#facc15" stroke-width="2"/>
+          <circle cx="390" cy="35" r="5" fill="#facc15"/><circle cx="570" cy="35" r="5" fill="#facc15"/>
+        </svg>`;
+      } else if (bottomView === 'nodes') {
+        title.textContent = 'Bidirectional Node Graph Compositor';
+        el.innerHTML = `<svg width="100%" height="185" viewBox="0 0 900 185" style="background:#0d1016;border:1px solid var(--border);">
+          <path d="M 190 55 C 260 55, 260 55, 330 55" stroke="#38bdf8" stroke-width="2" fill="none"/>
+          <path d="M 190 130 C 260 130, 260 95, 550 95" stroke="#22c55e" stroke-width="2" fill="none"/>
+          <path d="M 490 55 C 520 55, 520 80, 550 80" stroke="#e89b3c" stroke-width="2" fill="none"/>
+          <path d="M 700 88 L 760 88" stroke="#ffffff" stroke-width="2"/>
+          <rect x="40" y="32" width="150" height="46" rx="4" fill="#1b2230" stroke="#38bdf8"/><text x="52" y="59" fill="#fff" font-size="12">Read: HERO_TITLE</text>
+          <rect x="40" y="108" width="150" height="46" rx="4" fill="#1b2230" stroke="#22c55e"/><text x="52" y="135" fill="#fff" font-size="12">Shape: HUD_Rings</text>
+          <rect x="330" y="32" width="160" height="46" rx="4" fill="#1b2230" stroke="#e89b3c"/><text x="342" y="59" fill="#fff" font-size="12">Optical Glow (${glow}px)</text>
+          <rect x="550" y="64" width="150" height="46" rx="4" fill="#1b2230" stroke="#a855f7"/><text x="562" y="91" fill="#fff" font-size="12">Merge (Add/Over)</text>
+          <rect x="760" y="64" width="115" height="46" rx="4" fill="#1b2230" stroke="#22c55e"/><text x="772" y="91" fill="#fff" font-size="12">Comp Output</text>
+        </svg>`;
+      } else {
+        title.textContent = 'Render Queue — Multi-Format Local Export';
+        el.innerHTML = `<div style="padding:10px;">
+          <div style="margin-bottom:8px;">Job 1: <strong>SHOT_040_HERO_TITLE</strong> — ProRes 4444 (.mov) + WebM VP9 — <span id="rqStatus" style="color:var(--amber);">Ready</span></div>
+          <button class="primary" onclick="document.getElementById('rqStatus').textContent='Completed (100% Local)';">Start Local Render</button>
+        </div>`;
+      }
+    }
+    function drawStage() {
+      const c = document.getElementById('stage');
+      const ctx = c.getContext('2d');
+      const wipeX = (Number(document.getElementById('wipe').value) / 100) * c.width;
+      ctx.fillStyle = '#0c1424';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, 0, wipeX, c.height); ctx.clip();
+      ctx.shadowColor = `hsl(${35 + hue}, 90%, 60%)`;
+      ctx.shadowBlur = glow;
+      ctx.strokeStyle = `hsl(${198 + hue}, 90%, 60%)`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(320, 180, 70 + Math.sin(frame * 0.08) * 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      ctx.save();
+      ctx.translate(320 + Math.sin(frame * 0.06) * 28, 180);
+      ctx.scale(scale / 100, scale / 100);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('PREEFFECTS', 0, 8);
+      ctx.restore();
+      if (wipeX < c.width - 2) {
+        ctx.strokeStyle = '#e89b3c';
+        ctx.beginPath(); ctx.moveTo(wipeX, 0); ctx.lineTo(wipeX, c.height); ctx.stroke();
+      }
+    }
+    renderBottom();
+    drawStage();
+  </script>
+</body>
+</html>

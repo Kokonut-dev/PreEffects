@@ -1,0 +1,470 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960">
+  
+  <!-- App Frame Background -->
+  <rect x="0" y="0" width="1600" height="960" fill="#0C0E12"/>
+  <!-- Menu Bar -->
+  <rect x="0" y="0" width="1600" height="28" fill="#14171D"/>
+  <rect x="10" y="5" width="18" height="18" rx="4" fill="#E89B3C"/>
+  <text x="15" y="18" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#0C0E12">P</text>
+  <text x="36" y="18" font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="bold" fill="#E6EAF2">PreEffects</text>
+  <text x="118" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">File</text><text x="162" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Edit</text><text x="208" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Composition</text><text x="304" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Layer</text><text x="358" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Effect</text><text x="414" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Animation</text><text x="494" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">View</text><text x="544" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Window</text><text x="612" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Help</text>
+  <!-- Command Palette Search Pill -->
+  <rect x="1150" y="4" width="290" height="20" rx="3" fill="#202530" stroke="#323A4A" stroke-width="1"/>
+  <text x="1162" y="17" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#8C96AA">Search effects, commands, assets... (Ctrl+K)</text>
+  <text x="1460" y="18" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#22C55E">OFFLINE ● LOCAL</text>
+  <line x1="0" y1="28.5" x2="1600" y2="28.5" stroke="#262B36"/>
+
+  <!-- Tool & Workspace Bar -->
+  <rect x="0" y="29" width="1600" height="36" fill="#181C24"/>
+  
+      <rect x="10" y="35" width="38" height="24" rx="3" fill="#E89B3C" stroke="#F5B562"/>
+      <text x="29" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="bold" fill="#0C0E12">V</text>
+    
+      <rect x="54" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="73" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">H</text>
+    
+      <rect x="98" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="117" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Z</text>
+    
+      <rect x="142" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="161" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">W</text>
+    
+      <rect x="186" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="205" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">C</text>
+    
+      <rect x="230" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="249" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Y</text>
+    
+      <rect x="274" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="293" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Rect</text>
+    
+      <rect x="318" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="337" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Pen</text>
+    
+      <rect x="362" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="381" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Text</text>
+    
+      <rect x="406" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="425" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Brush</text>
+    
+      <rect x="450" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="469" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Clone</text>
+    
+      <rect x="494" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="513" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Roto</text>
+    
+  <line x1="548" y1="35" x2="548" y2="59" stroke="#2D3443"/>
+  <rect x="560" y="35" width="58" height="24" rx="3" fill="#222733" stroke="#38BDF8"/>
+  <text x="589" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" fill="#38BDF8">Snap ON</text>
+  <rect x="624" y="35" width="64" height="24" rx="3" fill="#222733" stroke="#303746"/>
+  <text x="656" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" fill="#AAB3C4">3D Gizmo</text>
+
+  <!-- Workspaces Right -->
+  
+      <rect x="1040" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1082" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Default</text>
+    
+      <rect x="1130" y="35" width="84" height="24" rx="3" fill="#253142" stroke="#38BDF8"/>
+      <text x="1172" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#E6EAF2">Animation</text>
+    
+      <rect x="1220" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1262" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Compositing</text>
+    
+      <rect x="1310" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1352" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Node Graph</text>
+    
+      <rect x="1400" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1442" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Typography</text>
+    
+      <rect x="1490" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1532" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Minimal</text>
+    
+  <line x1="0" y1="65.5" x2="1600" y2="65.5" stroke="#0C0E12"/>
+  
+  <!-- Left Panel: Project (x=0..308, y=67..556) -->
+  <rect x="0" y="67" width="308" height="489" fill="#14171D"/>
+  <rect x="0" y="67" width="308" height="26" fill="#1B1F27"/>
+  <rect x="0" y="67" width="92" height="2" fill="#38BDF8"/>
+  <text x="14" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#E6EAF2">Project</text>
+  <text x="108" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#8C96AA">Asset Library</text>
+  <text x="205" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#8C96AA">History</text>
+  <!-- Asset Preview Header -->
+  <rect x="10" y="101" width="76" height="46" rx="3" fill="#0E1726" stroke="#2D3646"/>
+  <circle cx="48" cy="124" r="14" fill="none" stroke="#E89B3C" stroke-width="1.5"/>
+  <text x="96" y="114" font-family="DejaVu Sans, sans-serif" font-size="11.5" font-weight="bold" fill="#E6EAF2">SHOT_040_HERO_TITLE</text>
+  <text x="96" y="129" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">1920×1080 | 60.00 fps | 10:00</text>
+  <text x="96" y="143" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8">32-bpc Float • ACEScg</text>
+  <!-- Search -->
+  <rect x="10" y="155" width="288" height="22" rx="3" fill="#1E232D" stroke="#2E3646"/>
+  <text x="20" y="170" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#7D879B">Filter project items...</text>
+  <!-- Project Tree -->
+  
+      
+      <rect x="12" y="183" width="8" height="8" rx="1.5" fill="#38BDF8"/>
+      <text x="26" y="192" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">▾ 01_Compositions</text>
+      <text x="242" y="192" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">Folder</text>
+    
+      <rect x="4" y="204" width="300" height="22" rx="2" fill="#233044"/>
+      <rect x="12" y="209" width="8" height="8" rx="1.5" fill="#E89B3C"/>
+      <text x="26" y="218" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#FFFFFF">    SHOT_040_HERO_TITLE</text>
+      <text x="242" y="218" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:10:00</text>
+    
+      
+      <rect x="12" y="235" width="8" height="8" rx="1.5" fill="#38C6BD"/>
+      <text x="26" y="244" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">    Precomp_Orbital_HUD</text>
+      <text x="242" y="244" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:10:00</text>
+    
+      
+      <rect x="12" y="261" width="8" height="8" rx="1.5" fill="#38BDF8"/>
+      <text x="26" y="270" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">▾ 02_Footage_Plates</text>
+      <text x="242" y="270" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">Folder</text>
+    
+      
+      <rect x="12" y="287" width="8" height="8" rx="1.5" fill="#4C8BF5"/>
+      <text x="26" y="296" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">    atmos_nebula_4k.mov</text>
+      <text x="242" y="296" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:14:12</text>
+    
+      
+      <rect x="12" y="313" width="8" height="8" rx="1.5" fill="#9B87F5"/>
+      <text x="26" y="322" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">    hud_glyph_sheet.psd</text>
+      <text x="242" y="322" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">Layered</text>
+    
+      
+      <rect x="12" y="339" width="8" height="8" rx="1.5" fill="#7CC69B"/>
+      <text x="26" y="348" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">    telemetry_data.json</text>
+      <text x="242" y="348" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">Data</text>
+    
+      
+      <rect x="12" y="365" width="8" height="8" rx="1.5" fill="#4BB543"/>
+      <text x="26" y="374" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">    sub_pulse_124bpm.wav</text>
+      <text x="242" y="374" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">48 kHz</text>
+    
+      
+      <rect x="12" y="391" width="8" height="8" rx="1.5" fill="#38BDF8"/>
+      <text x="26" y="400" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">▾ 03_Solids_and_3D</text>
+      <text x="242" y="400" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">Folder</text>
+    
+      
+      <rect x="12" y="417" width="8" height="8" rx="1.5" fill="#F29B76"/>
+      <text x="26" y="426" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">    satellite_mesh.glb</text>
+      <text x="242" y="426" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">42k tris</text>
+    
+      
+      <rect x="12" y="443" width="8" height="8" rx="1.5" fill="#E05252"/>
+      <text x="26" y="452" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#D0D6E2">    Optical_Vignette_Solid</text>
+      <text x="242" y="452" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">1920×1080</text>
+    
+
+  <!-- Center Composition Viewer (x=310..1218, y=67..556) -->
+  <rect x="310" y="67" width="908" height="26" fill="#1B1F27"/>
+  <rect x="310" y="67" width="215" height="2" fill="#E89B3C"/>
+  <text x="322" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#E6EAF2">Comp: SHOT_040_HERO_TITLE ×</text>
+  <text x="540" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#8C96AA">Precomp_Orbital_HUD ×</text>
+  
+  <defs>
+    <linearGradient id="stageGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1320"/>
+      <stop offset="55%" stop-color="#131E32"/>
+      <stop offset="100%" stop-color="#1E162B"/>
+    </linearGradient>
+    <radialGradient id="amberGlow" cx="50%" cy="50%" r="48%">
+      <stop offset="0%" stop-color="#E89B3C" stop-opacity="0.34"/>
+      <stop offset="65%" stop-color="#38BDF8" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#0B1320" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Viewer Dark Surround -->
+  <rect x="310" y="93" width="908" height="463" fill="#090A0D"/>
+  <!-- 16:9 Active Frame -->
+  <rect x="356" y="117" width="816" height="395" fill="url(#stageGrad)" stroke="#2E3646"/>
+  <rect x="356" y="117" width="816" height="395" fill="url(#amberGlow)"/>
+  <!-- Perspective Grid Lines -->
+  <line x1="494" y1="117" x2="329" y2="512" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="584" y1="117" x2="474" y2="512" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="674" y1="117" x2="619" y2="512" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="764" y1="117" x2="764" y2="512" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="854" y1="117" x2="909" y2="512" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="944" y1="117" x2="1054" y2="512" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="1034" y1="117" x2="1199" y2="512" stroke="#38BDF8" stroke-opacity="0.11"/>
+  <!-- Safe Zone Guides -->
+  <rect x="392" y="141" width="744" height="347" fill="none" stroke="#38BDF8" stroke-opacity="0.24" stroke-dasharray="4 4"/>
+  <!-- Animated HUD Rings -->
+  <circle cx="764" cy="314.5" r="118" fill="none" stroke="#38BDF8" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="18 8"/>
+  <circle cx="764" cy="314.5" r="88" fill="none" stroke="#E89B3C" stroke-opacity="0.7" stroke-width="2"/>
+  <!-- Motion Path Spatial Bezier Curve -->
+  <path d="M 554 382.5 C 654 229.5, 859 419.5, 979 286.5" fill="none" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="3 4"/>
+  <rect x="550" y="378.5" width="8" height="8" transform="rotate(45 554 382.5)" fill="#38BDF8"/>
+  <rect x="975" y="282.5" width="8" height="8" transform="rotate(45 979 286.5)" fill="#38BDF8"/>
+  <!-- Hero Kinetic Typography -->
+  <rect x="559" y="272.5" width="410" height="84" fill="none" stroke="#E89B3C" stroke-width="1.2"/>
+  <rect x="556" y="269.5" width="6" height="6" fill="#E89B3C"/><rect x="966" y="269.5" width="6" height="6" fill="#E89B3C"/><rect x="556" y="353.5" width="6" height="6" fill="#E89B3C"/><rect x="966" y="353.5" width="6" height="6" fill="#E89B3C"/>
+  <text x="764" y="312.5" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="30" font-weight="bold" letter-spacing="5" fill="#F8FAFC">PREEFFECTS</text>
+  <text x="764" y="340.5" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="11.5" fill="#38BDF8">ORBITAL TELEMETRY // 60 FPS</text>
+  <!-- Anchor Crosshair -->
+  <circle cx="764" cy="314.5" r="6" fill="none" stroke="#E89B3C" stroke-width="1.5"/>
+  <line x1="754" y1="314.5" x2="774" y2="314.5" stroke="#E89B3C"/>
+  <line x1="764" y1="304.5" x2="764" y2="324.5" stroke="#E89B3C"/>
+  <!-- Viewer Footer Bar -->
+  <rect x="310" y="528" width="908" height="28" fill="#161A22"/>
+  <text x="322" y="546" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#E6EAF2">75% ▾   Full ▾   RGB ▾   Active Camera (35mm) ▾   ROI   Snapshot A/B   32-bpc Linear</text>
+  <text x="1063" y="546" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#E89B3C">SHOT_040_HERO_TITLE</text>
+  
+
+  <!-- Right Inspector: Effect Controls & Transport (x=1220..1600, y=67..556) -->
+  <rect x="1220" y="67" width="380" height="489" fill="#14171D"/>
+  <rect x="1220" y="67" width="380" height="26" fill="#1B1F27"/>
+  <rect x="1220" y="67" width="118" height="2" fill="#38BDF8"/>
+  <text x="1232" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#E6EAF2">Effect Controls</text>
+  <text x="1348" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#8C96AA">Character</text>
+  <text x="1425" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#8C96AA">Scopes</text>
+  <text x="1488" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#8C96AA">Profiler</text>
+
+  <!-- Effect Card 1 -->
+  <rect x="1228" y="101" width="364" height="92" rx="3" fill="#1B1F28" stroke="#2B3242"/>
+  <rect x="1236" y="109" width="18" height="14" rx="2" fill="#E89B3C"/>
+  <text x="1240" y="119" font-family="DejaVu Sans Mono, monospace" font-size="9.5" font-weight="bold" fill="#0C0E12">fx</text>
+  <text x="1262" y="120" font-family="DejaVu Sans, sans-serif" font-size="11.5" font-weight="bold" fill="#E6EAF2">Gaussian Blur</text>
+  <text x="1528" y="119" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#22C55E">0.9 ms</text>
+  <text x="1242" y="144" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#9AA3B5">◆ Blurriness</text>
+  <text x="1518" y="144" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#E89B3C">14.5 px</text>
+  <rect x="1345" y="137" width="160" height="5" rx="2" fill="#2B3242"/>
+  <rect x="1345" y="137" width="68" height="5" rx="2" fill="#E89B3C"/>
+  <text x="1242" y="168" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#9AA3B5">   Blur Dimensions</text>
+  <text x="1438" y="168" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#D0D6E2">Horiz &amp; Vert ▾</text>
+
+  <!-- Effect Card 2 -->
+  <rect x="1228" y="201" width="364" height="106" rx="3" fill="#1B1F28" stroke="#2B3242"/>
+  <rect x="1236" y="209" width="18" height="14" rx="2" fill="#E89B3C"/>
+  <text x="1240" y="219" font-family="DejaVu Sans Mono, monospace" font-size="9.5" font-weight="bold" fill="#0C0E12">fx</text>
+  <text x="1262" y="220" font-family="DejaVu Sans, sans-serif" font-size="11.5" font-weight="bold" fill="#E6EAF2">Optical Glow (32-bpc)</text>
+  <text x="1528" y="219" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#22C55E">1.4 ms</text>
+  <text x="1242" y="244" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#9AA3B5">◆ Glow Threshold</text>
+  <text x="1524" y="244" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#E89B3C">64.0%</text>
+  <text x="1242" y="266" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#9AA3B5">◆ Glow Radius</text>
+  <text x="1518" y="266" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#E89B3C">48.0 px</text>
+  <text x="1242" y="288" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#9AA3B5">◆ Glow Intensity</text>
+  <text x="1534" y="288" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#E89B3C">1.65</text>
+
+  <!-- Effect Card 3: Curves Spline -->
+  <rect x="1228" y="315" width="364" height="162" rx="3" fill="#1B1F28" stroke="#2B3242"/>
+  <text x="1240" y="334" font-family="DejaVu Sans, sans-serif" font-size="11.5" font-weight="bold" fill="#E6EAF2">Curves — Master RGB</text>
+  <text x="1528" y="334" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#22C55E">0.6 ms</text>
+  <rect x="1242" y="344" width="140" height="122" fill="#11141B" stroke="#2F3747"/>
+  <line x1="1242" y1="466" x2="1382" y2="344" stroke="#2D3545" stroke-dasharray="3 3"/>
+  <path d="M 1242 466 C 1280 462, 1325 362, 1382 344" fill="none" stroke="#E6EAF2" stroke-width="2"/>
+  <path d="M 1242 466 C 1288 452, 1335 370, 1382 348" fill="none" stroke="#38BDF8" stroke-width="1.2"/>
+  <!-- Preview Transport Box -->
+  <rect x="1228" y="485" width="364" height="64" rx="3" fill="#181C24" stroke="#2B3242"/>
+  <text x="1240" y="504" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#9AA3B5">PREVIEW TRANSPORT</text>
+  <text x="1450" y="504" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#22C55E">60.0 fps ● REALTIME</text>
+  
+    <rect x="1240" y="514" width="48" height="26" rx="3" fill="#232936" stroke="#343D4F"/>
+    <text x="1264" y="531" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="10" font-weight="bold" fill="#E6EAF2">|&lt;</text>
+  
+    <rect x="1296" y="514" width="48" height="26" rx="3" fill="#232936" stroke="#343D4F"/>
+    <text x="1320" y="531" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="10" font-weight="bold" fill="#E6EAF2">&lt;</text>
+  
+    <rect x="1352" y="514" width="48" height="26" rx="3" fill="#E89B3C" stroke="#343D4F"/>
+    <text x="1376" y="531" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="10" font-weight="bold" fill="#0C0E12">PLAY</text>
+  
+    <rect x="1408" y="514" width="48" height="26" rx="3" fill="#232936" stroke="#343D4F"/>
+    <text x="1432" y="531" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="10" font-weight="bold" fill="#E6EAF2">&gt;</text>
+  
+    <rect x="1464" y="514" width="48" height="26" rx="3" fill="#232936" stroke="#343D4F"/>
+    <text x="1488" y="531" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="10" font-weight="bold" fill="#E6EAF2">&gt;|</text>
+  
+    <rect x="1520" y="514" width="48" height="26" rx="3" fill="#232936" stroke="#343D4F"/>
+    <text x="1544" y="531" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="10" font-weight="bold" fill="#E6EAF2">Loop</text>
+  
+
+  <!-- Bottom Timeline Panel (x=0..1600, y=558..935) -->
+  <rect x="0" y="558" width="1600" height="377" fill="#14171D"/>
+  <rect x="0" y="558" width="1600" height="32" fill="#1B1F27"/>
+  <!-- Timecode Readout -->
+  <rect x="10" y="563" width="128" height="22" rx="3" fill="#0F1217" stroke="#2E3646"/>
+  <text x="20" y="578" font-family="DejaVu Sans Mono, monospace" font-size="13" font-weight="bold" fill="#E89B3C">00:00:03:42</text>
+  <text x="148" y="578" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">f:0222</text>
+  <!-- Timeline View Switchers -->
+  <rect x="215" y="563" width="82" height="22" rx="3" fill="#253142" stroke="#38BDF8"/>
+  <text x="256" y="578" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#E6EAF2">Layer Stack</text>
+  <rect x="303" y="563" width="88" height="22" rx="3" fill="#202530" stroke="#303746"/>
+  <text x="347" y="578" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#9AA3B5">Node Graph</text>
+  <rect x="397" y="563" width="92" height="22" rx="3" fill="#202530" stroke="#303746"/>
+  <text x="443" y="578" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#9AA3B5">Graph Editor</text>
+
+  <!-- Column Headers -->
+  <rect x="0" y="590" width="620" height="24" fill="#171B22"/>
+  <text x="12" y="606" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#8C96AA">V  A  S  L   #   Layer Name                  Mode       Matte      Parent     Cost</text>
+  <!-- Time Ruler -->
+  <rect x="622" y="590" width="978" height="24" fill="#151920"/>
+  <!-- Green RAM Cache Bar -->
+  <rect x="622" y="611" width="680" height="3" fill="#22C55E"/>
+  
+    <line x1="640" y1="590" x2="640" y2="611" stroke="#343D4E"/>
+    <text x="645" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:00:00</text>
+  
+    <line x1="734" y1="590" x2="734" y2="611" stroke="#343D4E"/>
+    <text x="739" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:01:00</text>
+  
+    <line x1="828" y1="590" x2="828" y2="611" stroke="#343D4E"/>
+    <text x="833" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:02:00</text>
+  
+    <line x1="922" y1="590" x2="922" y2="611" stroke="#343D4E"/>
+    <text x="927" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:03:00</text>
+  
+    <line x1="1016" y1="590" x2="1016" y2="611" stroke="#343D4E"/>
+    <text x="1021" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:04:00</text>
+  
+    <line x1="1110" y1="590" x2="1110" y2="611" stroke="#343D4E"/>
+    <text x="1115" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:05:00</text>
+  
+    <line x1="1204" y1="590" x2="1204" y2="611" stroke="#343D4E"/>
+    <text x="1209" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:06:00</text>
+  
+    <line x1="1298" y1="590" x2="1298" y2="611" stroke="#343D4E"/>
+    <text x="1303" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:07:00</text>
+  
+    <line x1="1392" y1="590" x2="1392" y2="611" stroke="#343D4E"/>
+    <text x="1397" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:08:00</text>
+  
+    <line x1="1486" y1="590" x2="1486" y2="611" stroke="#343D4E"/>
+    <text x="1491" y="604" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#8C96AA">00:09:00</text>
+  
+
+  <!-- Timeline Tracks -->
+  
+      <rect x="0" y="616" width="620" height="32" fill="#212B3B"/>
+      <rect x="622" y="616" width="978" height="32" fill="#1C2533"/>
+      <rect x="78" y="625" width="10" height="14" rx="2" fill="#E89B3C"/>
+      <text x="12" y="636" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">◉  ·  ·  ·</text>
+      <text x="95" y="636" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">1</text>
+      <text x="116" y="636" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#FFFFFF">[Txt] PREEFFECTS_HERO_TITLE</text>
+      <text x="366" y="636" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">Normal</text>
+      <text x="434" y="636" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">None</text>
+      <text x="498" y="636" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8">4.Master_Null</text>
+      <text x="580" y="636" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E">1.4ms</text>
+      
+        <rect x="640" y="622" width="880" height="20" rx="3" fill="#E89B3C" fill-opacity="0.28" stroke="#E89B3C" stroke-opacity="0.8"/>
+      
+    
+      <rect x="0" y="649" width="620" height="32" fill="#13161C"/>
+      <rect x="622" y="649" width="978" height="32" fill="#11151B"/>
+      <rect x="78" y="658" width="10" height="14" rx="2" fill="#38BDF8"/>
+      <text x="12" y="669" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">◉  ·  ·  ·</text>
+      <text x="95" y="669" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">  </text>
+      <text x="116" y="669" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="normal" fill="#DCE2EE">  ▸ Transform.Position  [960.0, 530.0]  expr: wiggle(2,12)</text>
+      <text x="366" y="669" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5"></text>
+      <text x="434" y="669" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5"></text>
+      <text x="498" y="669" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8"></text>
+      <text x="580" y="669" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E"></text>
+      
+        <line x1="685" y1="665" x2="1180" y2="665" stroke="#38BDF8" stroke-opacity="0.5"/>
+        <rect x="680" y="660" width="10" height="10" transform="rotate(45 685 665)" fill="#38BDF8"/><rect x="830" y="660" width="10" height="10" transform="rotate(45 835 665)" fill="#38BDF8"/><rect x="990" y="660" width="10" height="10" transform="rotate(45 995 665)" fill="#E89B3C"/><rect x="1175" y="660" width="10" height="10" transform="rotate(45 1180 665)" fill="#38BDF8"/>
+      
+    
+      <rect x="0" y="682" width="620" height="32" fill="#151920"/>
+      <rect x="622" y="682" width="978" height="32" fill="#14181F"/>
+      <rect x="78" y="691" width="10" height="14" rx="2" fill="#38C6BD"/>
+      <text x="12" y="702" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">◉  ·  ·  ·</text>
+      <text x="95" y="702" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">2</text>
+      <text x="116" y="702" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="normal" fill="#DCE2EE">[Shp] HUD_Orbital_Rings (Trim+Repeater)</text>
+      <text x="366" y="702" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">Add</text>
+      <text x="434" y="702" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">None</text>
+      <text x="498" y="702" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8">4.Master_Null</text>
+      <text x="580" y="702" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E">1.1ms</text>
+      
+        <rect x="670" y="688" width="850" height="20" rx="3" fill="#38C6BD" fill-opacity="0.28" stroke="#38C6BD" stroke-opacity="0.8"/>
+      
+    
+      <rect x="0" y="715" width="620" height="32" fill="#13161C"/>
+      <rect x="622" y="715" width="978" height="32" fill="#11151B"/>
+      <rect x="78" y="724" width="10" height="14" rx="2" fill="#E079B5"/>
+      <text x="12" y="735" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">◉  ·  ·  ·</text>
+      <text x="95" y="735" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">3</text>
+      <text x="116" y="735" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="normal" fill="#DCE2EE">[Adj] Grade_ACES_FilmGlow_Adj</text>
+      <text x="366" y="735" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">Normal</text>
+      <text x="434" y="735" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">None</text>
+      <text x="498" y="735" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8">None</text>
+      <text x="580" y="735" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E">0.9ms</text>
+      
+        <rect x="640" y="721" width="910" height="20" rx="3" fill="#E079B5" fill-opacity="0.28" stroke="#E079B5" stroke-opacity="0.8"/>
+      
+    
+      <rect x="0" y="748" width="620" height="32" fill="#151920"/>
+      <rect x="622" y="748" width="978" height="32" fill="#14181F"/>
+      <rect x="78" y="757" width="10" height="14" rx="2" fill="#9B87F5"/>
+      <text x="12" y="768" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">◉  ·  ·  ·</text>
+      <text x="95" y="768" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">4</text>
+      <text x="116" y="768" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="normal" fill="#DCE2EE">[Nul] Master_Rig_Null_3D</text>
+      <text x="366" y="768" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">—</text>
+      <text x="434" y="768" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">—</text>
+      <text x="498" y="768" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8">None</text>
+      <text x="580" y="768" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E">0.1ms</text>
+      
+        <rect x="640" y="754" width="910" height="20" rx="3" fill="#9B87F5" fill-opacity="0.28" stroke="#9B87F5" stroke-opacity="0.8"/>
+      
+    
+      <rect x="0" y="781" width="620" height="32" fill="#13161C"/>
+      <rect x="622" y="781" width="978" height="32" fill="#11151B"/>
+      <rect x="78" y="790" width="10" height="14" rx="2" fill="#F29B76"/>
+      <text x="12" y="801" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">◉  ·  ·  ·</text>
+      <text x="95" y="801" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">5</text>
+      <text x="116" y="801" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="normal" fill="#DCE2EE">[Cam] Camera_35mm_Anamorphic (DoF)</text>
+      <text x="366" y="801" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">—</text>
+      <text x="434" y="801" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">—</text>
+      <text x="498" y="801" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8">4.Master_Null</text>
+      <text x="580" y="801" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E">0.4ms</text>
+      
+        <rect x="640" y="787" width="910" height="20" rx="3" fill="#F29B76" fill-opacity="0.28" stroke="#F29B76" stroke-opacity="0.8"/>
+      
+    
+      <rect x="0" y="814" width="620" height="32" fill="#151920"/>
+      <rect x="622" y="814" width="978" height="32" fill="#14181F"/>
+      <rect x="78" y="823" width="10" height="14" rx="2" fill="#4C8BF5"/>
+      <text x="12" y="834" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">◉  ·  ·  ·</text>
+      <text x="95" y="834" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">6</text>
+      <text x="116" y="834" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="normal" fill="#DCE2EE">[Pre] Precomp_Orbital_HUD</text>
+      <text x="366" y="834" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">Screen</text>
+      <text x="434" y="834" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">Alpha 7</text>
+      <text x="498" y="834" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8">None</text>
+      <text x="580" y="834" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E">0.6ms</text>
+      
+        <rect x="690" y="820" width="840" height="20" rx="3" fill="#4C8BF5" fill-opacity="0.28" stroke="#4C8BF5" stroke-opacity="0.8"/>
+      
+    
+      <rect x="0" y="847" width="620" height="32" fill="#13161C"/>
+      <rect x="622" y="847" width="978" height="32" fill="#11151B"/>
+      <rect x="78" y="856" width="10" height="14" rx="2" fill="#7CC69B"/>
+      <text x="12" y="867" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">◉  ·  ·  ·</text>
+      <text x="95" y="867" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">7</text>
+      <text x="116" y="867" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="normal" fill="#DCE2EE">[Mov] atmos_nebula_4k.mov</text>
+      <text x="366" y="867" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">Normal</text>
+      <text x="434" y="867" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">None</text>
+      <text x="498" y="867" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8">None</text>
+      <text x="580" y="867" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E">0.3ms</text>
+      
+        <rect x="640" y="853" width="910" height="20" rx="3" fill="#7CC69B" fill-opacity="0.28" stroke="#7CC69B" stroke-opacity="0.8"/>
+      
+    
+      <rect x="0" y="880" width="620" height="32" fill="#151920"/>
+      <rect x="622" y="880" width="978" height="32" fill="#14181F"/>
+      <rect x="78" y="889" width="10" height="14" rx="2" fill="#4BB543"/>
+      <text x="12" y="900" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">◉  ·  ·  ·</text>
+      <text x="95" y="900" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#8C96AA">8</text>
+      <text x="116" y="900" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="normal" fill="#DCE2EE">[Aud] sub_pulse_124bpm.wav</text>
+      <text x="366" y="900" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">—</text>
+      <text x="434" y="900" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9AA3B5">—</text>
+      <text x="498" y="900" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#38BDF8">None</text>
+      <text x="580" y="900" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E">0.1ms</text>
+      
+        <rect x="640" y="885" width="910" height="22" rx="3" fill="#1D3829" stroke="#2F6846"/>
+        <path d="M 650 896 L 655 899 L 670 886 L 685 905 L 700 888 L 715 903 L 730 890 L 745 901 L 760 892 L 775 899 L 790 886 L 805 905 L 820 888 L 835 903 L 850 890 L 865 901 L 880 892 L 895 899 L 910 886 L 925 905 L 940 888 L 955 903 L 970 890 L 985 901 L 1000 892 L 1015 899 L 1030 886 L 1045 905 L 1060 888 L 1075 903 L 1090 890 L 1105 901 L 1120 892 L 1135 899 L 1150 886 L 1165 905 L 1180 888 L 1195 903 L 1210 890 L 1225 901 L 1240 892 L 1255 899 L 1270 886 L 1285 905 L 1300 888 L 1315 903 L 1330 890 L 1345 901 L 1360 892 L 1375 899 L 1390 886 L 1405 905 L 1420 888 L 1435 903 L 1450 890 L 1465 901 L 1480 892 L 1495 899 L 1510 886" fill="none" stroke="#4ADE80" stroke-width="1.2"/>
+      
+    
+
+  <!-- Playhead CTI Needle -->
+  <polygon points="982,590 996,590 989,603" fill="#E89B3C"/>
+  <line x1="989" y1="602" x2="989" y2="935" stroke="#E89B3C" stroke-width="1.6"/>
+  
+  <rect x="0" y="936" width="1600" height="24" fill="#12151B"/>
+  <line x1="0" y1="936.5" x2="1600" y2="936.5" stroke="#262B36"/>
+  <text x="12" y="952" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#9AA3B5">Selection Tool (V) — Drag handles to transform layer; Shift constrains proportions</text>
+  <text x="760" y="952" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#D0D6E2">X: 0960  Y: 0540   RGBA(32f): 0.94, 0.61, 0.24, 1.00</text>
+  <text x="1190" y="952" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#22C55E">Frame Time: 4.8ms (60.0 fps)</text>
+  <text x="1400" y="952" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#38BDF8">RAM Cache: 412/1024 MB  WebGL2</text>
+  
+</svg>

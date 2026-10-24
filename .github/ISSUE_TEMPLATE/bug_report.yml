@@ -1,0 +1,49 @@
+name: Bug Report
+description: Report a defect, crash, rendering discrepancy, or cross-platform issue in PreEffects
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical (Crash / Data Loss)
+        - Major (Feature Broken / Incorrect Render)
+        - Minor (Workaround Exists / UX Friction)
+        - Cosmetic (Visual Alignment / Theme Polish)
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS (Apple Silicon / Intel)
+        - Windows (x64 / ARM64)
+        - Linux (AppImage / deb / rpm / Flatpak)
+        - All Platforms
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Create a 1920x1080 60fps composition
+        2. Add a Shape Layer with Trim Paths
+        3. Scrub playhead to 00:00:02:15
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behaviour
+    validations:
+      required: true
