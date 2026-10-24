@@ -29,6 +29,7 @@ export function boolP(params: EvaluatedParams, key: string, def: boolean): boole
 
 let sharedColSums = new Int32Array(8192);
 const sharedLut1D = new Uint8Array(256);
+const cachedBuiltInLuts = new Map<string, ReturnType<typeof createBuiltInLut>>();
 
 export function separableBoxBlur(
   src: Uint8ClampedArray,
@@ -455,22 +456,25 @@ export function runEffectFamilyKernel(
   }
 
   if (family === 'noise') {
+    if (effectId === 'remove-grain' || effectId === 'median' || effectId === 'dust-and-scratches') {
+      const scratch = globalBufferPool.acquire(total, false);
+      separableBoxBlur(src, dst, scratch, w, h, 1, 1);
+      globalBufferPool.release(scratch);
+      return;
+    }
     const rng = mulberry32(Math.floor(time * 60) + 19);
     const scale = Math.max(2, numP(params, 'scale', 32));
+    const isFractal = effectId === 'fractal-noise' || effectId === 'turbulent-noise';
+    const mix = clamp(amount / 100, 0, 1);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const o = (y * w + x) * 4;
-        if (effectId === 'fractal-noise' || effectId === 'turbulent-noise') {
+        if (isFractal) {
           const n = fbm2D(x / scale, y / scale + time * 0.35, 4) * 255;
-          const mix = clamp(amount / 100, 0, 1);
           dst[o] = lerp(src[o], n, mix);
           dst[o + 1] = lerp(src[o + 1], n, mix);
           dst[o + 2] = lerp(src[o + 2], n, mix);
           dst[o + 3] = src[o + 3] || 255;
-        } else if (effectId === 'remove-grain' || effectId === 'median' || effectId === 'dust-and-scratches') {
-          const scratch = new Uint8ClampedArray(total);
-          separableBoxBlur(src, dst, scratch, w, h, 1, 1);
-          return;
         } else {
           const g = (rng() - 0.5) * amount * 1.6;
           dst[o] = clamp(src[o] + g, 0, 255);
@@ -646,16 +650,24 @@ export function runEffectFamilyKernel(
 
   if (family === 'utility') {
     if (effectId === 'colour-profile-converter' || effectId === 'cineon-converter') {
+      const lut1D = sharedLut1D;
+      for (let v = 0; v < 256; v++) {
+        lut1D[v] = Math.round(linearToSrgb(srgbToLinear(v / 255)) * 255);
+      }
       for (let i = 0; i < total; i += 4) {
-        dst[i] = Math.round(linearToSrgb(srgbToLinear(src[i] / 255)) * 255);
-        dst[i + 1] = Math.round(linearToSrgb(srgbToLinear(src[i + 1] / 255)) * 255);
-        dst[i + 2] = Math.round(linearToSrgb(srgbToLinear(src[i + 2] / 255)) * 255);
+        dst[i] = lut1D[src[i]];
+        dst[i + 1] = lut1D[src[i + 1]];
+        dst[i + 2] = lut1D[src[i + 2]];
         dst[i + 3] = src[i + 3];
       }
       return;
     }
     const lutName = strP(params, 'lutPreset', 'teal-amber');
-    const lut = createBuiltInLut(lutName);
+    let lut = cachedBuiltInLuts.get(lutName);
+    if (!lut) {
+      lut = createBuiltInLut(lutName);
+      cachedBuiltInLuts.set(lutName, lut);
+    }
     applyLut3DToRgbaBuffer(lut, src, dst);
     return;
   }
@@ -717,8 +729,9 @@ export function runEffectFamilyKernel(
       return;
     }
     // AI Super-Scale / AI Temporal Denoise / AI Roto Matting / AI Optical-Flow
-    const scratch = new Uint8ClampedArray(total);
+    const scratch = globalBufferPool.acquire(total, false);
     separableBoxBlur(src, dst, scratch, w, h, 1, 1);
+    globalBufferPool.release(scratch);
     const detailBoost = effectId === 'ai-super-scale' ? 1.45 : 0.35;
     for (let i = 0; i < total; i += 4) {
       dst[i] = clamp(dst[i] + (src[i] - dst[i]) * detailBoost, 0, 255);

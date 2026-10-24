@@ -147,15 +147,24 @@ export const BottomWorkspacePanel: React.FC<{ heightPx?: number }> = ({ heightPx
     window.addEventListener('pointerup', onUp);
   };
 
-  const downloadRenderedArtifact = (name: string, mimeType: string, bytes?: Uint8Array) => {
+  const downloadRenderedArtifact = async (name: string, mimeType: string, bytes?: Uint8Array) => {
     if (!bytes) return;
+    if (window.preEffectsDesktop?.saveBinaryDialog) {
+      const res = await window.preEffectsDesktop.saveBinaryDialog(name, bytes);
+      if (!res.canceled) {
+        studio.notify(`Saved exported file "${res.filePath}" (${(bytes.byteLength / 1024).toFixed(1)} KB)`);
+      }
+      return;
+    }
     const blob = new Blob([bytes as unknown as BlobPart], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = name;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
     studio.notify(`Saved exported file "${name}" (${(bytes.byteLength / 1024).toFixed(1)} KB)`);
   };
 
@@ -935,8 +944,10 @@ export const BottomWorkspacePanel: React.FC<{ heightPx?: number }> = ({ heightPx
           {(() => {
             const nodes = comp.nodeGraph?.nodes ?? [];
             const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+            const svgWidth = Math.max(1220, ...nodes.map((n) => n.x + 220));
+            const svgHeight = Math.max(240, nodes.length * 46, ...nodes.map((n) => n.y + 80));
             return (
-              <svg width={1220} height={Math.max(240, nodes.length * 46)} style={{ display: 'block' }}>
+              <svg width={svgWidth} height={svgHeight} style={{ display: 'block' }}>
                 {nodes.flatMap((n) =>
                   n.inputs.map((inId) => {
                     const src = nodeMap.get(inId);

@@ -5,7 +5,7 @@ import { evaluateProperty } from '../../engine/expressions';
 import { computeVideoScopes } from '../../utils/color';
 import { autoTraceAlphaToMask } from '../../engine/masksAndRoto';
 import { synthesizeContentAwareFill, trackFeaturePatchNcc } from '../../engine/trackingAndPaint';
-import { renderCompositionFrame } from '../../engine/compositor';
+import { renderCompositionFrame, renderIsolatedLayerFrame } from '../../engine/compositor';
 import { convertAudioSamplesToKeyframes } from '../../engine/animation';
 import { generateSynthAudioBuffer, measureAudioVuDb } from '../../engine/audio';
 import { EFFECTS_CATALOG } from '../../effects/registry';
@@ -666,13 +666,26 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                       className="studio-btn"
                       style={{ minHeight: 22, padding: '1px 6px', fontSize: 10.5 }}
                       onClick={() => {
-                        if (!studio.lastFrameResult) return;
-                        const mask = autoTraceAlphaToMask(studio.lastFrameResult.pixels, studio.lastFrameResult.width, studio.lastFrameResult.height);
+                        if (!comp) return;
+                        const isolated = renderIsolatedLayerFrame(
+                          comp,
+                          layer.id,
+                          studio.currentTime,
+                          studio.project,
+                          studio.resolutionDivisor,
+                        );
+                        const mask = autoTraceAlphaToMask(
+                          isolated.pixels,
+                          isolated.width,
+                          isolated.height,
+                          32,
+                          studio.resolutionDivisor,
+                        );
                         studio.commitProjectChange('Auto-Trace Alpha to Bezier Mask', (draft) => {
                           const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
                           l?.masks.push(mask);
                         });
-                        studio.notify('Auto-Traced layer alpha into editable Bezier Mask');
+                        studio.notify('Auto-Traced isolated layer alpha into editable Bezier Mask');
                       }}
                     >
                       Auto-Trace
@@ -1009,7 +1022,7 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
             </p>
             <button
               className="studio-btn"
-              onClick={() => studio.applyEffectToSelectedLayer('fx-warp-stabilizer')}
+              onClick={() => studio.applyEffectToSelectedLayer('warp-stabilizer-vfx')}
             >
               Stabilize Selected Layer
             </button>

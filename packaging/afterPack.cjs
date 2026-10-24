@@ -5,7 +5,7 @@ const path = require('node:path');
  * Ad-hoc signs macOS .app bundles when building without an Apple Developer ID certificate
  * so Apple Silicon (arm64) Mach-O code signature seals remain valid after Electron repackaging.
  */
-exports.default = async function afterPack(context) {
+async function afterPack(context) {
   if (context.electronPlatformName !== 'darwin' || process.platform !== 'darwin') {
     return;
   }
@@ -21,4 +21,7 @@ exports.default = async function afterPack(context) {
   } catch (err) {
     console.warn('[afterPack] Ad-hoc codesign warning:', err);
   }
-};
+}
+
+module.exports = afterPack;
+module.exports.default = afterPack;

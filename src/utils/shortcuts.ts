@@ -8,8 +8,10 @@ export interface ShortcutBinding {
 }
 
 export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
+  { id: 'goHome', command: 'Toggle PreEffects Home Hub', category: 'View', combo: 'Alt+H' },
   { id: 'cmdPalette', command: 'Search Everything / Command Palette', category: 'View', combo: 'Mod+K' },
-  { id: 'openGuide', command: 'Open Interactive Studio Guide & Tutorial', category: 'View', combo: 'F1' },
+  { id: 'openGuide', command: 'Open Interactive Studio Guide & Handbook', category: 'View', combo: 'F1' },
+  { id: 'openTutorial', command: 'Launch Interactive Feature Tutorial', category: 'View', combo: 'F2' },
   { id: 'newComp', command: 'New Composition', category: 'Composition', combo: 'Mod+N' },
   { id: 'saveProject', command: 'Save Project (.prex)', category: 'File', combo: 'Mod+S' },
   { id: 'importAsset', command: 'Import Footage / Asset', category: 'File', combo: 'Mod+I' },

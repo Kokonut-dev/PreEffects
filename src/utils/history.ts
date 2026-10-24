@@ -1,4 +1,4 @@
-// Transaction-coalesced Undo/Redo History Manager + Deterministic Project Visual Diff
+// Transaction-coalesced Undo/Redo History Manager + Structural Binary Sharing + Visual Diff
 
 export interface HistoryEntry<T> {
   id: string;
@@ -6,6 +6,73 @@ export interface HistoryEntry<T> {
   timestamp: number;
   txKey?: string;
   state: T;
+}
+
+/**
+ * Clones project/document state while preserving immutable heavy TypedArray binary payloads
+ * (ProjectAsset.rgbaBuffer, ProjectAsset.audioSamples, RenderQueueItem.renderedArtifacts[].data)
+ * by reference — eliminating multi-gigabyte memory duplication across 200 Undo snapshots (OPT-R3-04).
+ */
+export function cloneHistoryState<T>(state: T): T {
+  if (!state || typeof state !== 'object') {
+    return structuredClone(state);
+  }
+  const rec = state as Record<string, unknown>;
+  if (!Array.isArray(rec.assets) && !Array.isArray(rec.renderQueue)) {
+    return structuredClone(state);
+  }
+
+  const savedAssetBuffers: Array<{ rgba?: unknown; audio?: unknown }> = [];
+  const strippedAssets = Array.isArray(rec.assets)
+    ? (rec.assets as Array<Record<string, unknown>>).map((a, idx) => {
+        savedAssetBuffers[idx] = { rgba: a.rgbaBuffer, audio: a.audioSamples };
+        if (a.rgbaBuffer !== undefined || a.audioSamples !== undefined) {
+          return { ...a, rgbaBuffer: undefined, audioSamples: undefined };
+        }
+        return a;
+      })
+    : undefined;
+
+  const savedArtifactData: Array<Array<unknown> | undefined> = [];
+  const strippedQueue = Array.isArray(rec.renderQueue)
+    ? (rec.renderQueue as Array<Record<string, unknown>>).map((job, jIdx) => {
+        if (Array.isArray(job.renderedArtifacts)) {
+          const arts = job.renderedArtifacts as Array<Record<string, unknown>>;
+          savedArtifactData[jIdx] = arts.map((art) => art.data);
+          return {
+            ...job,
+            renderedArtifacts: arts.map((art) => ({ ...art, data: undefined })),
+          };
+        }
+        return job;
+      })
+    : undefined;
+
+  const shellClone = structuredClone({
+    ...rec,
+    ...(strippedAssets !== undefined ? { assets: strippedAssets } : {}),
+    ...(strippedQueue !== undefined ? { renderQueue: strippedQueue } : {}),
+  });
+
+  if (Array.isArray(shellClone.assets)) {
+    (shellClone.assets as Array<Record<string, unknown>>).forEach((a, idx) => {
+      const saved = savedAssetBuffers[idx];
+      if (saved?.rgba !== undefined) a.rgbaBuffer = saved.rgba;
+      if (saved?.audio !== undefined) a.audioSamples = saved.audio;
+    });
+  }
+  if (Array.isArray(shellClone.renderQueue)) {
+    (shellClone.renderQueue as Array<Record<string, unknown>>).forEach((job, jIdx) => {
+      const savedArts = savedArtifactData[jIdx];
+      if (savedArts && Array.isArray(job.renderedArtifacts)) {
+        (job.renderedArtifacts as Array<Record<string, unknown>>).forEach((art, aIdx) => {
+          if (savedArts[aIdx] !== undefined) art.data = savedArts[aIdx];
+        });
+      }
+    });
+  }
+
+  return shellClone as unknown as T;
 }
 
 export class HistoryManager<T> {
@@ -20,12 +87,14 @@ export class HistoryManager<T> {
   }
 
   reset(state: T, label = 'Load Project'): void {
-    this.stack = [{
-      id: `hist_${Date.now()}_0`,
-      label,
-      timestamp: Date.now(),
-      state: structuredClone(state),
-    }];
+    this.stack = [
+      {
+        id: `hist_${Date.now()}_0`,
+        label,
+        timestamp: Date.now(),
+        state: cloneHistoryState(state),
+      },
+    ];
     this.index = 0;
   }
 
@@ -35,14 +104,13 @@ export class HistoryManager<T> {
 
   push(nextState: T, label: string, txKey?: string): void {
     const now = Date.now();
-    // Truncate redo tail
     if (this.index < this.stack.length - 1) {
       this.stack = this.stack.slice(0, this.index + 1);
     }
 
     const head = this.stack[this.index];
     if (txKey && head && head.txKey === txKey && now - head.timestamp <= this.coalesceWindowMs) {
-      head.state = structuredClone(nextState);
+      head.state = cloneHistoryState(nextState);
       head.timestamp = now;
       head.label = label;
       return;
@@ -53,7 +121,7 @@ export class HistoryManager<T> {
       label,
       timestamp: now,
       txKey,
-      state: structuredClone(nextState),
+      state: cloneHistoryState(nextState),
     });
     if (this.stack.length > this.maxEntries) {
       this.stack.shift();
@@ -72,19 +140,19 @@ export class HistoryManager<T> {
   undo(): T | null {
     if (!this.canUndo()) return null;
     this.index--;
-    return structuredClone(this.stack[this.index].state);
+    return cloneHistoryState(this.stack[this.index].state);
   }
 
   redo(): T | null {
     if (!this.canRedo()) return null;
     this.index++;
-    return structuredClone(this.stack[this.index].state);
+    return cloneHistoryState(this.stack[this.index].state);
   }
 
   jumpTo(targetIndex: number): T | null {
     if (targetIndex < 0 || targetIndex >= this.stack.length) return null;
     this.index = targetIndex;
-    return structuredClone(this.stack[this.index].state);
+    return cloneHistoryState(this.stack[this.index].state);
   }
 
   getEntries(): { entries: Array<Omit<HistoryEntry<T>, 'state'>>; currentIndex: number } {

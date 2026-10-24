@@ -21,6 +21,7 @@ import { buildNodeGraphFromComp, toggleNodeBypassInComp } from '../../engine/nod
 import {
   collectProjectPackage,
   deserializePrexProject,
+  importEdlToComposition,
   parseDelimitedData,
   parseObjMesh,
   serializeProjectToPrex,
@@ -48,7 +49,127 @@ export type ModalId =
   | 'history'
   | 'new-comp';
 
+export type ActiveAppView = 'home' | 'studio';
+
+export interface VaultProjectEntry {
+  id: string;
+  name: string;
+  updatedAt: number;
+  compCount: number;
+  layerCount: number;
+  resolutionLabel: string;
+  fps: number;
+  filePath?: string;
+  serializedJson: string;
+}
+
+export interface DesktopAppRuntimeInfo {
+  name: string;
+  version: string;
+  platform: string;
+  arch: string;
+  electronVersion: string;
+  isPackaged: boolean;
+  isDesktopApp: boolean;
+}
+
+export type ChannelViewId = 'rgb' | 'red' | 'green' | 'blue' | 'alpha' | 'alpha-boundary';
+export type AovViewId = 'beauty' | 'z-depth' | 'normals' | 'object-id' | 'motion-vectors';
+
+/**
+ * BUG-R3-08 Fixed: Dynamic RIFF WAVE chunk parser supporting arbitrary JUNK/LIST/bext chunks,
+ * 8/16/24/32-bit PCM & 32-bit IEEE Float (formatTag 1 or 3), multi-channel to mono downmix, and real sampleRate.
+ */
+export function parseWavPcmBuffer(ab: ArrayBuffer): { samples: Float32Array; sampleRate: number; durationSec: number } {
+  if (ab.byteLength < 44) {
+    return { samples: new Float32Array(0), sampleRate: 48000, durationSec: 0 };
+  }
+  const dv = new DataView(ab);
+  const readFourCC = (off: number) =>
+    String.fromCharCode(dv.getUint8(off), dv.getUint8(off + 1), dv.getUint8(off + 2), dv.getUint8(off + 3));
+
+  if (readFourCC(0) !== 'RIFF' || readFourCC(8) !== 'WAVE') {
+    const count = Math.min(262144, Math.floor(ab.byteLength / 2));
+    const samples = new Float32Array(count);
+    for (let i = 0; i < count; i++) samples[i] = dv.getInt16(i * 2, true) / 32768;
+    return { samples, sampleRate: 44100, durationSec: count / 44100 };
+  }
+
+  let audioFormat = 1;
+  let numChannels = 1;
+  let sampleRate = 48000;
+  let bitsPerSample = 16;
+  let dataOffset = -1;
+  let dataSize = 0;
+
+  let offset = 12;
+  while (offset + 8 <= ab.byteLength) {
+    const chunkId = readFourCC(offset);
+    const chunkSize = dv.getUint32(offset + 4, true);
+    const bodyOffset = offset + 8;
+    if (chunkId === 'fmt ' && chunkSize >= 16 && bodyOffset + 16 <= ab.byteLength) {
+      audioFormat = dv.getUint16(bodyOffset, true);
+      numChannels = Math.max(1, dv.getUint16(bodyOffset + 2, true));
+      sampleRate = Math.max(8000, dv.getUint32(bodyOffset + 4, true));
+      bitsPerSample = dv.getUint16(bodyOffset + 14, true);
+    } else if (chunkId === 'data') {
+      dataOffset = bodyOffset;
+      dataSize = Math.min(chunkSize, ab.byteLength - bodyOffset);
+      break;
+    }
+    offset = bodyOffset + chunkSize + (chunkSize & 1);
+  }
+
+  if (dataOffset < 0 || dataSize <= 0) {
+    return { samples: new Float32Array(0), sampleRate, durationSec: 0 };
+  }
+
+  const bytesPerSample = Math.max(1, bitsPerSample >> 3);
+  const frameStride = bytesPerSample * numChannels;
+  const totalFrames = Math.floor(dataSize / frameStride);
+  const cappedFrames = Math.min(totalFrames, sampleRate * 60);
+  const mono = new Float32Array(cappedFrames);
+
+  for (let f = 0; f < cappedFrames; f++) {
+    let sum = 0;
+    const base = dataOffset + f * frameStride;
+    for (let ch = 0; ch < numChannels; ch++) {
+      const p = base + ch * bytesPerSample;
+      if (audioFormat === 3 && bitsPerSample === 32) {
+        sum += dv.getFloat32(p, true);
+      } else if (bitsPerSample === 8) {
+        sum += (dv.getUint8(p) - 128) / 128;
+      } else if (bitsPerSample === 16) {
+        sum += dv.getInt16(p, true) / 32768;
+      } else if (bitsPerSample === 24) {
+        const b0 = dv.getUint8(p);
+        const b1 = dv.getUint8(p + 1);
+        const b2 = dv.getInt8(p + 2);
+        sum += ((b2 << 16) | (b1 << 8) | b0) / 8388608;
+      } else if (bitsPerSample === 32) {
+        sum += dv.getInt32(p, true) / 2147483648;
+      }
+    }
+    mono[f] = Math.max(-1, Math.min(1, sum / numChannels));
+  }
+
+  return {
+    samples: mono,
+    sampleRate,
+    durationSec: totalFrames / sampleRate,
+  };
+}
+
 export interface StudioContextValue {
+  activeView: ActiveAppView;
+  setActiveView: (v: ActiveAppView) => void;
+  desktopAppInfo: DesktopAppRuntimeInfo;
+  recentProjects: VaultProjectEntry[];
+  saveCurrentToVault: (filePath?: string) => void;
+  openVaultProject: (vaultId: string) => void;
+  deleteVaultProject: (vaultId: string) => void;
+  openProjectFileLocal: () => Promise<void>;
+
   project: Project;
   activeComp: Composition;
   selectedLayerIds: string[];
@@ -66,8 +187,8 @@ export interface StudioContextValue {
   preferences: StudioPreferences;
   shortcuts: ShortcutBinding[];
   resolutionDivisor: 1 | 2 | 3 | 4;
-  channelView: 'rgb' | 'red' | 'green' | 'blue' | 'alpha';
-  aovView: 'beauty' | 'z-depth';
+  channelView: ChannelViewId;
+  aovView: AovViewId;
   zoomPct: number;
   viewportPan: [number, number];
   showSafeZones: boolean;
@@ -85,13 +206,16 @@ export interface StudioContextValue {
   activeHelpId: string | null;
   tourStep: number | null;
   activeSpotlightRegion: 'chrome' | 'left-dock' | 'viewport' | 'right-dock' | 'bottom-dock' | null;
+  completedTutorialModules: string[];
   hasRecoverableAutosave: boolean;
 
-  // Navigation & UI state setters
   setWhatsThisMode: (v: boolean) => void;
   setActiveHelpId: (id: string | null) => void;
   setTourStep: (step: number | null) => void;
   startInteractiveTour: () => void;
+  startInteractiveTutorialModule: (stepIndex?: number) => void;
+  markTutorialModuleCompleted: (moduleId: string) => void;
+  resetTutorialProgress: () => void;
   finishInteractiveTour: () => void;
   runGuideTryAction: (actionId: GuideTryActionId) => void;
   restoreRecoverableAutosave: () => void;
@@ -109,8 +233,8 @@ export interface StudioContextValue {
   setActiveModal: (m: ModalId) => void;
   setSelectedLayerIds: (ids: string[]) => void;
   setResolutionDivisor: (d: 1 | 2 | 3 | 4) => void;
-  setChannelView: (c: 'rgb' | 'red' | 'green' | 'blue' | 'alpha') => void;
-  setAovView: (aov: 'beauty' | 'z-depth') => void;
+  setChannelView: (c: ChannelViewId) => void;
+  setAovView: (aov: AovViewId) => void;
   setZoomPct: (z: number) => void;
   setViewportPan: (pan: [number, number]) => void;
   setShowSafeZones: (v: boolean) => void;
@@ -122,7 +246,6 @@ export interface StudioContextValue {
   updateShortcuts: (next: ShortcutBinding[]) => void;
   notify: (msg: string) => void;
 
-  // Core Project / Comp / Layer Mutators (Undoable!)
   commitProjectChange: (label: string, mutator: (draft: Project) => void, coalesceKey?: string) => void;
   undo: () => void;
   redo: () => void;
@@ -157,20 +280,8 @@ const AUTOSAVE_KEY = 'preeffects.autosave.v1';
 const PREFS_KEY = 'preeffects.preferences.v1';
 const SHORTCUTS_KEY = 'preeffects.shortcuts.v2';
 const TOUR_SEEN_KEY = 'preeffects.tour_seen.v1';
-
-function parsePcm16WavSamples(buf: ArrayBuffer): Float32Array | undefined {
-  if (buf.byteLength < 44) return undefined;
-  const view = new DataView(buf);
-  const riff = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
-  if (riff !== 'RIFF') return undefined;
-  const sampleCount = Math.min(240000, Math.floor((buf.byteLength - 44) / 2));
-  if (sampleCount <= 0) return undefined;
-  const out = new Float32Array(sampleCount);
-  for (let i = 0; i < sampleCount; i++) {
-    out[i] = view.getInt16(44 + i * 2, true) / 32768;
-  }
-  return out;
-}
+const VAULT_PROJECTS_KEY = 'preeffects.recentProjects.v1';
+const TUTORIAL_COMPLETED_KEY = 'preeffects.tutorial.completed.v1';
 
 function decodeImageFileToRgba(file: File): Promise<{ width: number; height: number; rgba: Uint8ClampedArray }> {
   return new Promise((resolve, reject) => {
@@ -211,6 +322,39 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const historyRef = useRef(new HistoryManager<Project>(initialProject, 200));
   const globalFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [activeView, setActiveViewState] = useState<ActiveAppView>('home');
+  const [desktopAppInfo, setDesktopAppInfo] = useState<DesktopAppRuntimeInfo>({
+    name: 'PreEffects',
+    version: '1.0.3',
+    platform: typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? 'darwin' : 'web',
+    arch: 'arm64',
+    electronVersion: '',
+    isPackaged: false,
+    isDesktopApp: typeof window !== 'undefined' && Boolean(window.preEffectsDesktop?.isDesktopApp),
+  });
+
+  const [recentProjects, setRecentProjects] = useState<VaultProjectEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem(VAULT_PROJECTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
+
+  const [completedTutorialModules, setCompletedTutorialModules] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(TUTORIAL_COMPLETED_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
+
   const [project, setProject] = useState<Project>(initialProject);
   const [selectedLayerIds, setSelectedLayerIds] = useState<string[]>(['lyr_hero_title']);
   const [currentTime, setCurrentTime] = useState<number>(1.8);
@@ -222,13 +366,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [bottomMode, setBottomMode] = useState<BottomViewMode>('timeline');
   const [leftTab, setLeftTab] = useState<LeftTabId>('project');
   const [rightTab, setRightTab] = useState<RightTabId>('inspector');
-  const [activeModal, setActiveModal] = useState<ModalId>(() => {
-    try {
-      return localStorage.getItem(TOUR_SEEN_KEY) ? 'none' : 'onboarding';
-    } catch {
-      return 'none';
-    }
-  });
+  const [activeModal, setActiveModal] = useState<ModalId>('none');
+
   const [preferences, setPreferences] = useState<StudioPreferences>(() => {
     try {
       const saved = localStorage.getItem(PREFS_KEY);
@@ -240,14 +379,22 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [shortcuts, setShortcutsState] = useState<ShortcutBinding[]>(() => {
     try {
       const saved = localStorage.getItem(SHORTCUTS_KEY);
-      return saved ? JSON.parse(saved) : DEFAULT_SHORTCUTS;
-    } catch {
-      return DEFAULT_SHORTCUTS;
-    }
+      if (saved) {
+        const parsed: ShortcutBinding[] = JSON.parse(saved);
+        const merged = [...DEFAULT_SHORTCUTS];
+        for (const s of parsed) {
+          const idx = merged.findIndex((d) => d.id === s.id);
+          if (idx >= 0) merged[idx] = s;
+        }
+        return merged;
+      }
+    } catch { /* ignore */ }
+    return DEFAULT_SHORTCUTS;
   });
+
   const [resolutionDivisor, setResolutionDivisor] = useState<1 | 2 | 3 | 4>(2);
-  const [channelView, setChannelView] = useState<'rgb' | 'red' | 'green' | 'blue' | 'alpha'>('rgb');
-  const [aovView, setAovView] = useState<'beauty' | 'z-depth'>('beauty');
+  const [channelView, setChannelView] = useState<ChannelViewId>('rgb');
+  const [aovView, setAovView] = useState<AovViewId>('beauty');
   const [zoomPct, setZoomPct] = useState<number>(100);
   const [viewportPan, setViewportPan] = useState<[number, number]>([0, 0]);
   const [showSafeZones, setShowSafeZones] = useState<boolean>(true);
@@ -256,7 +403,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [snapshotFrame, setSnapshotFrame] = useState<ViewportSnapshotFrame | null>(null);
   const [wipeSplit01, setWipeSplit01] = useState<number>(0);
   const [lastFrameResult, setLastFrameResult] = useState<CompositeFrameResult | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string>('Ready — 100% Local Studio Mode (Zero Cloud / Offline)');
+  const [statusMessage, setStatusMessage] = useState<string>('Ready — 100% Local Studio Mode · Home (Alt+H) · Handbook (F1)');
   const [historyVersion, setHistoryVersion] = useState(0);
   const [whatsThisMode, setWhatsThisMode] = useState<boolean>(false);
   const [activeHelpId, setActiveHelpId] = useState<string | null>(null);
@@ -278,6 +425,21 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     () => activeComp?.layers.find((l) => l.id === selectedLayerIds[0]),
     [activeComp, selectedLayerIds],
   );
+
+  // Query desktop Electron runtime metadata (app version, OS, arch, packaging state)
+  useEffect(() => {
+    if (window.preEffectsDesktop?.getAppInfo) {
+      window.preEffectsDesktop
+        .getAppInfo()
+        .then((info: Omit<DesktopAppRuntimeInfo, 'isDesktopApp'>) => {
+          setDesktopAppInfo({
+            ...info,
+            isDesktopApp: true,
+          });
+        })
+        .catch(() => { /* ignore */ });
+    }
+  }, []);
 
   // Sync theme attribute & mathematically verified custom accent contrast on document root
   useEffect(() => {
@@ -314,23 +476,132 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setStatusMessage(msg);
   }, []);
 
-  // Re-evaluate composite frame whenever activeComp, playhead, or view options change
+  const setActiveView = useCallback((v: ActiveAppView) => {
+    if (v === 'home') {
+      setIsPlaying(false);
+    } else {
+      try {
+        localStorage.setItem(TOUR_SEEN_KEY, '1');
+      } catch { /* ignore */ }
+    }
+    setActiveViewState(v);
+  }, []);
+
+  // Save/update project inside the Local Project Vault (100% local offline persistence)
+  const saveCurrentToVault = useCallback(
+    (filePath?: string) => {
+      try {
+        const comp = project.compositions.find((c) => c.id === project.activeCompId) ?? project.compositions[0];
+        const totalLayers = project.compositions.reduce((s, c) => s + c.layers.length, 0);
+        const serializedJson = serializeProjectToPrex(project, { lightweightStorage: true });
+        const entry: VaultProjectEntry = {
+          id: project.id,
+          name: project.name,
+          updatedAt: Date.now(),
+          compCount: project.compositions.length,
+          layerCount: totalLayers,
+          resolutionLabel: comp ? `${comp.width}×${comp.height}` : '1920×1080',
+          fps: comp?.fps ?? 30,
+          filePath,
+          serializedJson,
+        };
+        setRecentProjects((prev) => {
+          const filtered = prev.filter((p) => p.id !== entry.id && p.name !== entry.name);
+          const next = [entry, ...filtered].slice(0, 8);
+          try {
+            localStorage.setItem(VAULT_PROJECTS_KEY, JSON.stringify(next));
+          } catch { /* quota safe */ }
+          return next;
+        });
+      } catch { /* ignore */ }
+    },
+    [project],
+  );
+
+  const openVaultProject = useCallback(
+    (vaultId: string) => {
+      const target = recentProjects.find((p) => p.id === vaultId);
+      if (!target) return;
+      try {
+        const loaded = deserializePrexProject(target.serializedJson);
+        historyRef.current.reset(loaded, `Open "${loaded.name}"`);
+        studioRamCache.purgeAll();
+        setProject(loaded);
+        const firstComp = loaded.compositions.find((c) => c.id === loaded.activeCompId) ?? loaded.compositions[0];
+        setSelectedLayerIds(firstComp?.layers[0] ? [firstComp.layers[0].id] : []);
+        setCurrentTime(0);
+        setHistoryVersion((v) => v + 1);
+        setActiveView('studio');
+        notify(`Opened project "${loaded.name}" from Local Vault`);
+      } catch (err) {
+        notify(`Could not open vault project: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [recentProjects, setActiveView, notify],
+  );
+
+  const deleteVaultProject = useCallback(
+    (vaultId: string) => {
+      setRecentProjects((prev) => {
+        const next = prev.filter((p) => p.id !== vaultId);
+        try {
+          localStorage.setItem(VAULT_PROJECTS_KEY, JSON.stringify(next));
+        } catch { /* ignore */ }
+        return next;
+      });
+      notify('Removed project from Local Vault');
+    },
+    [notify],
+  );
+
+  const markTutorialModuleCompleted = useCallback((moduleId: string) => {
+    setCompletedTutorialModules((prev) => {
+      if (prev.includes(moduleId)) return prev;
+      const next = [...prev, moduleId];
+      try {
+        localStorage.setItem(TUTORIAL_COMPLETED_KEY, JSON.stringify(next));
+      } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  const resetTutorialProgress = useCallback(() => {
+    setCompletedTutorialModules([]);
+    try {
+      localStorage.removeItem(TUTORIAL_COMPLETED_KEY);
+    } catch { /* ignore */ }
+    notify('Reset interactive tutorial completion progress');
+  }, [notify]);
+
+  // OPT-R3-06 & BUG-R3-13: Render active frame ONLY when in Studio view (0% idle CPU on Home Hub) + pass transparentBackground
   useEffect(() => {
-    if (!activeComp) return;
+    if (!activeComp || activeView === 'home') return;
     const effectiveDiv: 1 | 2 | 3 | 4 =
       isPlaying && preferences.adaptiveScrubResolution && resolutionDivisor < 2 ? 2 : resolutionDivisor;
     const res = renderCompositionFrame(activeComp, currentTime, project, {
       resolutionDivisor: effectiveDiv,
       channelView,
       aovPass: aovView,
+      transparentBackground: checkerboard,
       useCache: true,
     });
     setLastFrameResult(res);
-  }, [activeComp, currentTime, project, resolutionDivisor, channelView, aovView, isPlaying, preferences.adaptiveScrubResolution]);
+  }, [
+    activeComp,
+    activeView,
+    currentTime,
+    project,
+    resolutionDivisor,
+    channelView,
+    aovView,
+    checkerboard,
+    isPlaying,
+    preferences.adaptiveScrubResolution,
+  ]);
 
-  // 60fps requestAnimationFrame playback loop bounded to Work Area (supports J/K/L reverse/forward shuttle)
+  // 60fps requestAnimationFrame playback loop bounded to Work Area (paused automatically on Home Hub)
   useEffect(() => {
-    if (!isPlaying || !activeComp) return;
+    if (!isPlaying || !activeComp || activeView === 'home') return;
     let rafId = 0;
     let prevTs = performance.now();
     const tick = (now: number) => {
@@ -356,17 +627,16 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, activeComp, shuttleSpeed, loopPlayback]);
+  }, [isPlaying, activeComp, shuttleSpeed, loopPlayback, activeView]);
 
-  // Periodic local-only Autosave
+  // Periodic local-only Autosave (lightweight storage safe)
   useEffect(() => {
     if (!preferences.autoSaveEnabled) return;
     const timer = window.setInterval(() => {
       try {
-        const serialized = serializeProjectToPrex(project);
+        const serialized = serializeProjectToPrex(project, { lightweightStorage: true });
         localStorage.setItem(AUTOSAVE_KEY, serialized);
-        const desk = (window as unknown as { preEffectsDesktop?: { writeAutosave?: (id: string, c: string) => Promise<unknown> } }).preEffectsDesktop;
-        void desk?.writeAutosave?.(project.id, serialized);
+        void window.preEffectsDesktop?.writeAutosaveSnapshot?.(project.id, serialized);
       } catch {
         // Quota full or private browsing — ignore silently
       }
@@ -469,17 +739,29 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     studioRamCache.purgeAll();
     setProject(next);
     setSelectedLayerIds(next.compositions[0]?.layers[0] ? [next.compositions[0].layers[0].id] : []);
-    setCurrentTime(1.2);
+    setCurrentTime(tpl === 'blank' ? 0 : 1.2);
     setHistoryVersion((v) => v + 1);
+    setActiveView('studio');
     notify(`Loaded template: ${next.name}`);
-  }, [notify]);
+  }, [setActiveView, notify]);
 
+  // BUG-R3-09 Fixed: Clamp playhead and select valid layer when switching active compositions
   const openActiveComp = useCallback((compId: string) => {
-    setProject((prev) => ({
-      ...prev,
-      activeCompId: compId,
-      openCompIds: prev.openCompIds.includes(compId) ? prev.openCompIds : [...prev.openCompIds, compId],
-    }));
+    setProject((prev) => {
+      const targetComp = prev.compositions.find((c) => c.id === compId);
+      if (targetComp) {
+        setCurrentTime((t) => Math.max(0, Math.min(targetComp.duration, t)));
+        setSelectedLayerIds((sel) => {
+          const valid = sel.filter((id) => targetComp.layers.some((l) => l.id === id));
+          return valid.length > 0 ? valid : targetComp.layers[0] ? [targetComp.layers[0].id] : [];
+        });
+      }
+      return {
+        ...prev,
+        activeCompId: compId,
+        openCompIds: prev.openCompIds.includes(compId) ? prev.openCompIds : [...prev.openCompIds, compId],
+      };
+    });
   }, []);
 
   const createNewComposition = useCallback((name: string, width: number, height: number, fps: number, duration: number, bgColor = '#0B0C0E') => {
@@ -509,7 +791,10 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       draft.activeCompId = newId;
       draft.openCompIds.push(newId);
     });
-  }, [commitProjectChange]);
+    setCurrentTime(0);
+    setSelectedLayerIds([]);
+    setActiveView('studio');
+  }, [commitProjectChange, setActiveView]);
 
   const addLayerOfType = useCallback((type: LayerType, initialPos?: [number, number]): string => {
     if (!activeComp) return '';
@@ -785,23 +1070,27 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const saveProjectFileLocal = useCallback(async () => {
     const json = serializeProjectToPrex(project);
-    const desk = (window as unknown as {
-      preEffectsDesktop?: { saveProjectDialog?: (n: string, c: string) => Promise<{ filePath: string } | null> };
-    }).preEffectsDesktop;
-    if (desk?.saveProjectDialog) {
-      const res = await desk.saveProjectDialog(project.name || 'Project.prex', json);
-      if (res?.filePath) notify(`Saved to ${res.filePath}`);
+    const defaultName = project.name.endsWith('.prex') ? project.name : `${project.name}.prex`;
+    if (window.preEffectsDesktop?.saveProjectDialog) {
+      const res = await window.preEffectsDesktop.saveProjectDialog(defaultName, json);
+      if (!res.canceled && res.filePath) {
+        saveCurrentToVault(res.filePath);
+        notify(`Saved to ${res.filePath}`);
+      }
       return;
     }
+    saveCurrentToVault();
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = project.name.endsWith('.prex') ? project.name : `${project.name}.prex`;
+    a.download = defaultName;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
     notify(`Downloaded local project file "${a.download}"`);
-  }, [project, notify]);
+  }, [project, saveCurrentToVault, notify]);
 
   const importLocalFileContent = useCallback((fileName: string, textOrBytes: string | ArrayBuffer) => {
     const lower = fileName.toLowerCase();
@@ -811,13 +1100,59 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         historyRef.current.reset(loaded);
         studioRamCache.purgeAll();
         setProject(loaded);
+        const firstComp = loaded.compositions.find((c) => c.id === loaded.activeCompId) ?? loaded.compositions[0];
+        setSelectedLayerIds(firstComp?.layers[0] ? [firstComp.layers[0].id] : []);
+        setCurrentTime(0);
         setHistoryVersion((v) => v + 1);
+        setActiveView('studio');
         notify(`Opened project "${fileName}"`);
         return;
       } catch (e) {
         notify(`Invalid .prex file: ${e instanceof Error ? e.message : String(e)}`);
         return;
       }
+    }
+
+    if (lower.endsWith('.edl')) {
+      const asEdl = typeof textOrBytes === 'string' ? textOrBytes : new TextDecoder().decode(textOrBytes);
+      const edlComp = importEdlToComposition(asEdl, 24);
+      commitProjectChange(`Import EDL "${fileName}"`, (draft) => {
+        draft.compositions.push(edlComp);
+        draft.activeCompId = edlComp.id;
+        draft.openCompIds.push(edlComp.id);
+      });
+      setActiveView('studio');
+      notify(`Imported EDL timeline "${fileName}"`);
+      return;
+    }
+
+    if (lower.endsWith('.wav') && textOrBytes instanceof ArrayBuffer) {
+      const parsed = parseWavPcmBuffer(textOrBytes);
+      const assetId = createId('ast');
+      const layerId = createId('lyr');
+      commitProjectChange(`Import Audio "${fileName}"`, (draft) => {
+        draft.assets.push({
+          id: assetId,
+          name: fileName,
+          folder: '02_Audio',
+          kind: 'audio',
+          path: fileName,
+          audioSamples: parsed.samples,
+          audioSampleRate: parsed.sampleRate,
+          duration: parsed.durationSec || 5,
+        });
+        const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
+        if (comp) {
+          const audLayer = buildDefaultLayerForComp('audio', comp, layerId);
+          audLayer.name = fileName;
+          audLayer.assetId = assetId;
+          comp.layers.unshift(audLayer);
+        }
+      });
+      setSelectedLayerIds([layerId]);
+      setActiveView('studio');
+      notify(`Imported local audio "${fileName}" (${parsed.sampleRate} Hz)`);
+      return;
     }
 
     const asText = typeof textOrBytes === 'string' ? textOrBytes : new TextDecoder().decode(textOrBytes);
@@ -845,11 +1180,21 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         structuredData: parsedData,
         cubeLutText: kind === 'lut' ? asText : undefined,
       });
+      if (parsedMesh) {
+        const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
+        if (comp) {
+          const meshLyr = buildDefaultLayerForComp('footage', comp, createId('lyr'));
+          meshLyr.name = fileName;
+          meshLyr.assetId = assetId;
+          meshLyr.threeD = true;
+          comp.layers.unshift(meshLyr);
+        }
+      }
     });
+    setActiveView('studio');
     notify(`Imported local asset "${fileName}" into Project Bin`);
-  }, [commitProjectChange, notify]);
+  }, [commitProjectChange, setActiveView, notify]);
 
-  // BUG-P0-04 Fix: Full binary image / PCM WAV / 3D OBJ / CSV / LUT decoder
   const importLocalFile = useCallback(async (file: File) => {
     const lower = file.name.toLowerCase();
     if (
@@ -858,7 +1203,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       lower.endsWith('.obj') ||
       lower.endsWith('.csv') ||
       lower.endsWith('.tsv') ||
-      lower.endsWith('.cube')
+      lower.endsWith('.cube') ||
+      lower.endsWith('.edl')
     ) {
       const text = await file.text();
       importLocalFileContent(file.name, text);
@@ -867,29 +1213,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     if (lower.endsWith('.wav')) {
       const buf = await file.arrayBuffer();
-      const samples = parsePcm16WavSamples(buf);
-      const assetId = createId('ast');
-      const layerId = createId('lyr');
-      commitProjectChange(`Import Audio "${file.name}"`, (draft) => {
-        draft.assets.push({
-          id: assetId,
-          name: file.name,
-          folder: '02_Audio',
-          kind: 'audio',
-          path: file.name,
-          audioSamples: samples,
-          audioSampleRate: 44100,
-        });
-        const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
-        if (comp) {
-          const audLayer = buildDefaultLayerForComp('audio', comp, layerId);
-          audLayer.name = file.name;
-          audLayer.assetId = assetId;
-          comp.layers.unshift(audLayer);
-        }
-      });
-      setSelectedLayerIds([layerId]);
-      notify(`Imported local audio "${file.name}"`);
+      importLocalFileContent(file.name, buf);
       return;
     }
 
@@ -917,6 +1241,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       });
       setSelectedLayerIds([layerId]);
+      setActiveView('studio');
       notify(`Imported image "${file.name}" (${decoded.width}×${decoded.height}) onto stage`);
     } catch {
       commitProjectChange(`Import Asset "${file.name}"`, (draft) => {
@@ -928,17 +1253,31 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           path: file.name,
         });
       });
+      setActiveView('studio');
       notify(`Added "${file.name}" to Project Bin`);
     }
-  }, [commitProjectChange, importLocalFileContent, notify]);
+  }, [commitProjectChange, importLocalFileContent, setActiveView, notify]);
 
   const triggerImportDialog = useCallback(() => {
     globalFileInputRef.current?.click();
   }, []);
 
+  // BUG-R3-04 Fixed: Open local .prex project via native Electron file dialog on desktop, or file input on web
+  const openProjectFileLocal = useCallback(async () => {
+    if (window.preEffectsDesktop?.openProjectDialog) {
+      const res = await window.preEffectsDesktop.openProjectDialog();
+      if (!res.canceled && res.content) {
+        const fileName = res.filePath.split(/[/\\]/).pop() || 'Project.prex';
+        importLocalFileContent(fileName, res.content);
+      }
+      return;
+    }
+    globalFileInputRef.current?.click();
+  }, [importLocalFileContent]);
+
   const commitGitSnapshot = useCallback((message: string) => {
     commitProjectChange(`Version Snapshot: ${message}`, (draft) => {
-      const serializedProject = serializeProjectToPrex({ ...draft, versionCommits: [] });
+      const serializedProject = serializeProjectToPrex({ ...draft, versionCommits: [] }, { lightweightStorage: true });
       const active = draft.compositions.find((c) => c.id === draft.activeCompId) ?? draft.compositions[0];
       draft.versionCommits.unshift({
         id: createId('git'),
@@ -953,8 +1292,9 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         serializedProject,
       });
     });
+    saveCurrentToVault();
     notify(`Saved in-project Git version commit: "${message}"`);
-  }, [commitProjectChange, notify]);
+  }, [commitProjectChange, saveCurrentToVault, notify]);
 
   const purgeRamCache = useCallback(() => {
     studioRamCache.purgeAll();
@@ -971,11 +1311,12 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setProject(loaded);
       setHasRecoverableAutosave(false);
       setHistoryVersion((v) => v + 1);
+      setActiveView('studio');
       notify(`Recovered autosaved project "${loaded.name}"`);
     } catch {
       setHasRecoverableAutosave(false);
     }
-  }, [notify]);
+  }, [setActiveView, notify]);
 
   const dismissRecoverableAutosave = useCallback(() => {
     setHasRecoverableAutosave(false);
@@ -999,12 +1340,14 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const a = document.createElement('a');
     a.href = url;
     a.download = `${project.name.replace(/\s+/g, '_')}_CollectFiles_Manifest.json`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
     notify(`Exported Collect Files manifest (${pkg.referencedAssets.length} assets)`);
   }, [project, notify]);
 
-  // Interactive Spotlight Walkthrough Helpers
+  // Interactive 10-Module Feature Tutorial Helpers
   const setTourStep = useCallback((step: number | null) => {
     setTourStepState(step);
     if (step !== null) {
@@ -1018,89 +1361,320 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [activeWorkspace]);
 
+  const startInteractiveTutorialModule = useCallback(
+    (stepIndex = 0) => {
+      try {
+        localStorage.setItem(TOUR_SEEN_KEY, '1');
+      } catch { /* ignore */ }
+      const clamped = Math.max(0, Math.min(INTERACTIVE_TUTORIAL_STEPS.length - 1, stepIndex));
+      setActiveModal('none');
+      setActiveView('studio');
+      setTourStep(clamped);
+      const mod = INTERACTIVE_TUTORIAL_STEPS[clamped];
+      notify(`Tutorial ${mod.badge}: ${mod.title}`);
+    },
+    [setActiveView, setTourStep, notify],
+  );
+
   const startInteractiveTour = useCallback(() => {
-    setActiveModal('none');
-    setTourStep(0);
-    notify('Interactive Walkthrough active — explore each spotlighted studio panel');
-  }, [notify, setTourStep]);
+    startInteractiveTutorialModule(0);
+  }, [startInteractiveTutorialModule]);
 
   const finishInteractiveTour = useCallback(() => {
     setTourStepState(null);
     try {
       localStorage.setItem(TOUR_SEEN_KEY, '1');
     } catch { /* ignore */ }
-    notify('Tutorial complete — press F1 or click Guide anytime to reopen');
+    notify('Tutorial paused — reopen anytime from Home (Alt+H), Tutorial button, or F2');
   }, [notify]);
 
-  const runGuideTryAction = useCallback((actionId: GuideTryActionId) => {
-    switch (actionId) {
-      case 'open-command-palette':
-        setActiveModal('command-palette');
+  // Automatic Live Hands-On Challenge Completion Detector
+  useEffect(() => {
+    if (tourStep === null || activeView !== 'studio') return;
+    const step = INTERACTIVE_TUTORIAL_STEPS[tourStep];
+    if (!step) return;
+    const layers = activeComp?.layers ?? [];
+    let accomplished = false;
+    switch (step.moduleId) {
+      case 'mod-viewport-stage':
+        accomplished = Boolean(snapshotFrame) || showGrid || checkerboard || channelView !== 'rgb' || aovView !== 'beauty';
         break;
-      case 'create-new-comp':
-        setActiveModal('new-comp');
+      case 'mod-layers-blending':
+        accomplished = layers.length > 4 || layers.some((l) => l.trackMatteMode !== 'none');
         break;
-      case 'add-shape-layer':
-        addLayerOfType('shape');
+      case 'mod-keyframes-curves':
+        accomplished = bottomMode === 'graph';
         break;
-      case 'add-text-layer':
-        addLayerOfType('text');
+      case 'mod-expressions-rigging':
+        accomplished = layers.some(
+          (l) =>
+            Boolean(l.transform.position.expressionEnabled && l.transform.position.expression) ||
+            Boolean(l.transform.rotationZ.expressionEnabled && l.transform.rotationZ.expression) ||
+            Boolean(l.transform.scale.expressionEnabled && l.transform.scale.expression),
+        );
         break;
-      case 'apply-glow-effect':
-        applyEffectToSelectedLayer('fx-glow');
+      case 'mod-effects-scopes':
+        accomplished = rightTab === 'scopes' || layers.reduce((s, l) => s + l.effects.length, 0) >= 3;
         break;
-      case 'keyframe-and-ease':
-        toggleKeyframeOnTransform('position');
-        applyKeyframeAssistant('easy-ease');
-        setBottomMode('timeline');
+      case 'mod-shapes-typography':
+        accomplished = layers.some(
+          (l) => (l.shapeContent?.operators.length ?? 0) > 1 || (l.textData?.animators.length ?? 0) > 0,
+        );
         break;
-      case 'open-graph-editor':
-        setBottomMode('graph');
+      case 'mod-masks-paint-puppet':
+        accomplished = layers.some((l) => l.masks.length > 0 || l.paintStrokes.length > 0 || l.puppetPins.length > 0);
         break;
-      case 'open-node-dag':
-        setBottomMode('nodes');
+      case 'mod-tracking-roto-fill':
+        accomplished = layers.some(
+          (l) =>
+            Boolean(l.rotoMatteEnabled) ||
+            l.name.includes('Track Null') ||
+            l.name.includes('Clean Plate') ||
+            l.effects.some((fx) => fx.effectId === 'warp-stabilizer-vfx'),
+        );
         break;
-      case 'open-scopes':
-        applyEffectToSelectedLayer('fx-glow');
-        setRightTab('scopes');
+      case 'mod-nodes-3d-stage':
+        accomplished = bottomMode === 'nodes' || layers.some((l) => l.type === 'camera' || l.type === 'light');
         break;
-      case 'open-tracker':
-        setRightTab('tracker');
-        break;
-      case 'take-ab-snapshot':
-        takeSnapshot();
-        break;
-      case 'queue-gif-render':
-        addCurrentCompToRenderQueue();
+      case 'mod-audio-script-render':
+        accomplished = project.renderQueue.length > 0 || project.versionCommits.length > 0;
         break;
     }
+    if (accomplished) {
+      markTutorialModuleCompleted(step.moduleId);
+    }
   }, [
-    addLayerOfType,
-    applyEffectToSelectedLayer,
-    toggleKeyframeOnTransform,
-    applyKeyframeAssistant,
-    takeSnapshot,
-    addCurrentCompToRenderQueue,
+    tourStep,
+    activeView,
+    activeComp,
+    snapshotFrame,
+    showGrid,
+    checkerboard,
+    channelView,
+    aovView,
+    bottomMode,
+    rightTab,
+    project.renderQueue.length,
+    project.versionCommits.length,
+    markTutorialModuleCompleted,
   ]);
 
-  // Complete Global Keyboard Shortcut Handler (BUG-P1-01 fixed: all 38 bindings wired!)
-  useEffect(() => {
-    const isMac = navigator.platform.toLowerCase().includes('mac');
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const inInput = Boolean(
-        target &&
-          (target.tagName === 'INPUT' ||
-            target.tagName === 'TEXTAREA' ||
-            target.tagName === 'SELECT' ||
-            target.isContentEditable),
-      );
+  const runGuideTryAction = useCallback(
+    (actionId: GuideTryActionId) => {
+      setActiveView('studio');
+      const matchingStep = INTERACTIVE_TUTORIAL_STEPS.find((s) => s.tryActionId === actionId);
+      if (matchingStep) markTutorialModuleCompleted(matchingStep.moduleId);
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setActiveModal((m) => (m === 'command-palette' ? 'none' : 'command-palette'));
-        return;
+      switch (actionId) {
+        case 'open-command-palette':
+          setActiveModal('command-palette');
+          break;
+        case 'create-new-comp':
+          setActiveModal('new-comp');
+          break;
+        case 'add-shape-layer':
+          addLayerOfType('shape');
+          setRightTab('inspector');
+          break;
+        case 'add-text-layer':
+          addLayerOfType('text');
+          setRightTab('inspector');
+          break;
+        case 'apply-glow-effect':
+          applyEffectToSelectedLayer('glow');
+          break;
+        case 'keyframe-and-ease':
+          toggleKeyframeOnTransform('position');
+          applyKeyframeAssistant('easy-ease');
+          setBottomMode('graph');
+          break;
+        case 'open-graph-editor':
+          setBottomMode('graph');
+          break;
+        case 'apply-wiggle-expression': {
+          const targetId = selectedLayerIds[0] ?? activeComp?.layers[0]?.id;
+          if (targetId) {
+            commitProjectChange('Apply Wiggle Expression Demo', (draft) => {
+              const lyr = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((l) => l.id === targetId);
+              if (lyr) {
+                lyr.transform.position.expression = 'wiggle(2.5, 22)';
+                lyr.transform.position.expressionEnabled = true;
+              }
+            });
+            setLeftTab('library');
+            setBottomMode('timeline');
+            notify('Applied live expression wiggle(2.5, 22) — press Space to preview motion!');
+          }
+          break;
+        }
+        case 'add-trim-paths-operator': {
+          const shapeId = addLayerOfType('shape');
+          if (shapeId) {
+            commitProjectChange('Add Trim Paths + Repeater Demo', (draft) => {
+              const lyr = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((l) => l.id === shapeId);
+              if (lyr?.shapeContent) {
+                lyr.shapeContent.kind = 'polystar';
+                lyr.shapeContent.operators.push(
+                  { id: createId('sop'), type: 'trim-paths', enabled: true, params: { start: 8, end: 82, offset: 15 } },
+                  { id: createId('sop'), type: 'repeater', enabled: true, params: { copies: 4, rotation: 30 } },
+                );
+              }
+            });
+            setRightTab('inspector');
+            notify('Created Polystar Vector Shape with Trim Paths + Repeater operators');
+          }
+          break;
+        }
+        case 'create-mask-and-stroke': {
+          const targetId = selectedLayerIds[0] ?? activeComp?.layers[0]?.id;
+          if (targetId && activeComp) {
+            const cx = activeComp.width * 0.5;
+            const cy = activeComp.height * 0.5;
+            commitProjectChange('Add Feathered Bezier Mask & Write-On Stroke', (draft) => {
+              const lyr = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((l) => l.id === targetId);
+              if (lyr) {
+                lyr.masks.push({
+                  id: createId('mask'),
+                  name: 'Feathered Spotlight Mask',
+                  mode: 'add',
+                  inverted: false,
+                  locked: false,
+                  rotoBezier: true,
+                  closed: true,
+                  feather: 18,
+                  opacity: 100,
+                  expansion: 0,
+                  vertices: [
+                    { x: cx - 320, y: cy - 180, inX: 0, inY: 0, outX: 0, outY: 0 },
+                    { x: cx + 320, y: cy - 180, inX: 0, inY: 0, outX: 0, outY: 0 },
+                    { x: cx + 320, y: cy + 180, inX: 0, inY: 0, outX: 0, outY: 0 },
+                    { x: cx - 320, y: cy + 180, inX: 0, inY: 0, outX: 0, outY: 0 },
+                  ],
+                });
+                lyr.paintStrokes.push({
+                  id: createId('stk'),
+                  tool: 'brush',
+                  color: '#F5A524',
+                  radius: 14,
+                  hardness: 85,
+                  opacity: 100,
+                  durationMode: 'constant',
+                  startTime: 0,
+                  duration: Math.max(1, activeComp.duration),
+                  points: [
+                    [cx - 220, cy + 140],
+                    [cx, cy + 115],
+                    [cx + 220, cy + 140],
+                  ],
+                });
+              }
+            });
+            setRightTab('inspector');
+            notify('Added feathered Bezier Mask + live Brush accent stroke');
+          }
+          break;
+        }
+        case 'enable-3d-camera-rig':
+          addLayerOfType('camera');
+          setBottomMode('nodes');
+          notify('Added 35mm Depth-of-Field 3D Camera & opened Bidirectional Node DAG');
+          break;
+        case 'open-node-dag':
+          setBottomMode('nodes');
+          break;
+        case 'open-scopes':
+          applyEffectToSelectedLayer('glow');
+          setRightTab('scopes');
+          break;
+        case 'open-tracker':
+          setRightTab('tracker');
+          applyEffectToSelectedLayer('warp-stabilizer-vfx');
+          break;
+        case 'take-ab-snapshot':
+          takeSnapshot();
+          break;
+        case 'queue-gif-render':
+          addCurrentCompToRenderQueue();
+          break;
       }
+    },
+    [
+      setActiveView,
+      markTutorialModuleCompleted,
+      addLayerOfType,
+      applyEffectToSelectedLayer,
+      toggleKeyframeOnTransform,
+      applyKeyframeAssistant,
+      selectedLayerIds,
+      activeComp,
+      commitProjectChange,
+      takeSnapshot,
+      addCurrentCompToRenderQueue,
+      notify,
+    ],
+  );
+
+  // BUG-R3-04 Fixed: Subscribe to Native Electron Menu IPC actions
+  useEffect(() => {
+    if (!window.preEffectsDesktop?.onMenuAction) return;
+    return window.preEffectsDesktop.onMenuAction((action: string) => {
+      switch (action) {
+        case 'view.home':
+          setActiveViewState((v) => {
+            if (v === 'studio') setIsPlaying(false);
+            return v === 'home' ? 'studio' : 'home';
+          });
+          break;
+        case 'file.new':
+          loadTemplateProject('blank');
+          break;
+        case 'file.open':
+          void openProjectFileLocal();
+          break;
+        case 'file.save':
+          void saveProjectFileLocal();
+          break;
+        case 'edit.undo':
+          undo();
+          break;
+        case 'edit.redo':
+          redo();
+          break;
+        case 'comp.new':
+          setActiveView('studio');
+          setActiveModal('new-comp');
+          break;
+        case 'comp.addToQueue':
+          setActiveView('studio');
+          addCurrentCompToRenderQueue();
+          break;
+        case 'help.tutorial':
+          startInteractiveTutorialModule(0);
+          break;
+        case 'help.guide':
+          setActiveView('studio');
+          setActiveModal('guide');
+          break;
+      }
+    });
+  }, [
+    loadTemplateProject,
+    openProjectFileLocal,
+    saveProjectFileLocal,
+    undo,
+    redo,
+    setActiveView,
+    addCurrentCompToRenderQueue,
+    startInteractiveTutorialModule,
+  ]);
+
+  // Global Customisable Keyboard Shortcut Dispatcher
+  useEffect(() => {
+    const isMac = /Mac|iPhone|iPad/i.test(navigator.platform);
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable;
+
       if (e.key === 'Escape') {
         if (activeModal !== 'none') {
           setActiveModal('none');
@@ -1119,6 +1693,30 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       if (inInput) return;
 
+      const hit = matchShortcutEvent(e, shortcuts, isMac);
+      if (hit?.id === 'goHome') {
+        e.preventDefault();
+        setActiveView(activeView === 'home' ? 'studio' : 'home');
+        return;
+      }
+      if (hit?.id === 'openTutorial') {
+        e.preventDefault();
+        startInteractiveTutorialModule(tourStep ?? 0);
+        return;
+      }
+      if (hit?.id === 'openGuide') {
+        e.preventDefault();
+        setActiveModal((m) => (m === 'guide' ? 'none' : 'guide'));
+        return;
+      }
+      if (hit?.id === 'cmdPalette') {
+        e.preventDefault();
+        setActiveModal((m) => (m === 'command-palette' ? 'none' : 'command-palette'));
+        return;
+      }
+
+      if (activeView === 'home') return;
+
       if (e.key === 'Delete' && !e.ctrlKey && !e.metaKey && activeModal === 'none') {
         e.preventDefault();
         deleteSelectedLayers();
@@ -1132,12 +1730,9 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return;
       }
 
-      const hit = matchShortcutEvent(e, shortcuts, isMac);
       if (!hit) return;
       e.preventDefault();
       switch (hit.id) {
-        case 'cmdPalette': setActiveModal((m) => (m === 'command-palette' ? 'none' : 'command-palette')); break;
-        case 'openGuide': setActiveModal((m) => (m === 'guide' ? 'none' : 'guide')); break;
         case 'playPause': setShuttleSpeed(1); setIsPlaying((p) => !p); break;
         case 'shuttleRev': setShuttleSpeed(-1); setIsPlaying(true); break;
         case 'shuttleStop': setIsPlaying(false); setShuttleSpeed(1); break;
@@ -1207,7 +1802,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [
-    shortcuts, activeModal, whatsThisMode, activeHelpId, activeComp, currentTime, isPlaying,
+    shortcuts, activeView, activeModal, whatsThisMode, activeHelpId, activeComp, currentTime, isPlaying, tourStep,
+    setActiveView, startInteractiveTutorialModule,
     undo, redo, deleteSelectedLayers, saveProjectFileLocal, triggerImportDialog, addLayerOfType,
     splitSelectedLayersAtPlayhead, duplicateSelectedLayers, precomposeSelectedLayers,
     applyKeyframeAssistant, toggleKeyframeOnTransform, addCurrentCompToRenderQueue, takeSnapshot,
@@ -1226,11 +1822,19 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [historyVersion]);
 
   const activeSpotlightRegion =
-    tourStep !== null ? INTERACTIVE_TUTORIAL_STEPS[tourStep]?.spotlightRegion ?? null : null;
+    tourStep !== null && activeView === 'studio' ? INTERACTIVE_TUTORIAL_STEPS[tourStep]?.spotlightRegion ?? null : null;
 
   void makeProp;
 
   const value: StudioContextValue = {
+    activeView,
+    setActiveView,
+    desktopAppInfo,
+    recentProjects,
+    saveCurrentToVault,
+    openVaultProject,
+    deleteVaultProject,
+    openProjectFileLocal,
     project,
     activeComp,
     selectedLayerIds,
@@ -1267,11 +1871,15 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     activeHelpId,
     tourStep,
     activeSpotlightRegion,
+    completedTutorialModules,
     hasRecoverableAutosave,
     setWhatsThisMode,
     setActiveHelpId,
     setTourStep,
     startInteractiveTour,
+    startInteractiveTutorialModule,
+    markTutorialModuleCompleted,
+    resetTutorialProgress,
     finishInteractiveTour,
     runGuideTryAction,
     restoreRecoverableAutosave,
@@ -1335,7 +1943,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ref={globalFileInputRef}
         type="file"
         style={{ display: 'none' }}
-        accept=".prex,.json,.png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.obj,.csv,.tsv,.cube,.wav"
+        accept=".prex,.json,.png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.obj,.csv,.tsv,.cube,.wav,.edl"
         onChange={async (e) => {
           const f = e.target.files?.[0];
           if (f) await importLocalFile(f);

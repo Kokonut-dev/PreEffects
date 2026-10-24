@@ -43,19 +43,20 @@ export const ModalsAndOverlays: React.FC = () => {
   const paletteItems = useMemo(() => {
     const q = cmdQuery.toLowerCase().trim();
     const commands = [
-      { id: 'cmd_guide', title: 'Interactive Guide: Open 8-Chapter Studio Handbook (F1)', badge: 'Guide', run: () => studio.setActiveModal('guide') },
-      { id: 'cmd_tour', title: 'Interactive Guide: Start 8-Step Live Spotlight Walkthrough', badge: 'Tour', run: () => studio.startInteractiveTour() },
-      { id: 'cmd_new_comp', title: 'New Composition… (Ctrl+N)', badge: 'Comp', run: () => studio.setActiveModal('new-comp') },
-      { id: 'cmd_comp_set', title: 'Composition Settings…', badge: 'Comp', run: () => studio.setActiveModal('comp-settings') },
-      { id: 'cmd_add_text', title: 'New Typography Layer (T)', badge: 'Layer', run: () => { studio.addLayerOfType('text'); studio.setActiveModal('none'); } },
-      { id: 'cmd_add_shape', title: 'New Vector Shape Layer (Q)', badge: 'Layer', run: () => { studio.addLayerOfType('shape'); studio.setActiveModal('none'); } },
-      { id: 'cmd_add_solid', title: 'New Solid Layer (Ctrl+Y)', badge: 'Layer', run: () => { studio.addLayerOfType('solid'); studio.setActiveModal('none'); } },
-      { id: 'cmd_add_cam', title: 'New 3D Camera (35mm DoF)', badge: '3D', run: () => { studio.addLayerOfType('camera'); studio.setActiveModal('none'); } },
-      { id: 'cmd_nodes', title: 'Switch Timeline ⇄ Bidirectional Node Graph (Shift+N)', badge: 'View', run: () => { studio.setBottomMode(studio.bottomMode === 'nodes' ? 'timeline' : 'nodes'); studio.setActiveModal('none'); } },
-      { id: 'cmd_graph', title: 'Open Speed / Value Graph Editor (U)', badge: 'Anim', run: () => { studio.setBottomMode('graph'); studio.setActiveModal('none'); } },
-      { id: 'cmd_ease', title: 'Easy Ease Selected Keyframes (F9)', badge: 'Anim', run: () => { studio.applyKeyframeAssistant('easy-ease'); studio.setActiveModal('none'); } },
-      { id: 'cmd_smart_dup', title: 'Smart Duplicate Hierarchy (Ctrl+Alt+D)', badge: 'Edit', run: () => { studio.duplicateSelectedLayers(true); studio.setActiveModal('none'); } },
-      { id: 'cmd_render', title: 'Queue & Open Render Queue (Ctrl+M)', badge: 'Export', run: () => { studio.addCurrentCompToRenderQueue(); studio.setActiveModal('none'); } },
+      { id: 'cmd_home', title: 'Home Hub: Open PreEffects Homepage & Project Vault (Alt+H)', badge: 'Home', run: () => { studio.setActiveModal('none'); studio.setActiveView('home'); } },
+      { id: 'cmd_tour', title: 'Interactive Tutorial: Launch 10-Module Feature Masterclass (F2)', badge: 'Tutorial', run: () => studio.startInteractiveTutorialModule(0) },
+      { id: 'cmd_guide', title: 'Handbook: Open 8-Chapter Studio Reference Guide (F1)', badge: 'Guide', run: () => studio.setActiveModal('guide') },
+      { id: 'cmd_new_comp', title: 'New Composition… (Ctrl+N)', badge: 'Comp', run: () => { studio.setActiveView('studio'); studio.setActiveModal('new-comp'); } },
+      { id: 'cmd_comp_set', title: 'Composition Settings…', badge: 'Comp', run: () => { studio.setActiveView('studio'); studio.setActiveModal('comp-settings'); } },
+      { id: 'cmd_add_text', title: 'New Typography Layer (T)', badge: 'Layer', run: () => { studio.setActiveView('studio'); studio.addLayerOfType('text'); studio.setActiveModal('none'); } },
+      { id: 'cmd_add_shape', title: 'New Vector Shape Layer (Q)', badge: 'Layer', run: () => { studio.setActiveView('studio'); studio.addLayerOfType('shape'); studio.setActiveModal('none'); } },
+      { id: 'cmd_add_solid', title: 'New Solid Layer (Ctrl+Y)', badge: 'Layer', run: () => { studio.setActiveView('studio'); studio.addLayerOfType('solid'); studio.setActiveModal('none'); } },
+      { id: 'cmd_add_cam', title: 'New 3D Camera (35mm DoF)', badge: '3D', run: () => { studio.setActiveView('studio'); studio.addLayerOfType('camera'); studio.setActiveModal('none'); } },
+      { id: 'cmd_nodes', title: 'Switch Timeline ⇄ Bidirectional Node Graph (Shift+N)', badge: 'View', run: () => { studio.setActiveView('studio'); studio.setBottomMode(studio.bottomMode === 'nodes' ? 'timeline' : 'nodes'); studio.setActiveModal('none'); } },
+      { id: 'cmd_graph', title: 'Open Speed / Value Graph Editor (U)', badge: 'Anim', run: () => { studio.setActiveView('studio'); studio.setBottomMode('graph'); studio.setActiveModal('none'); } },
+      { id: 'cmd_ease', title: 'Easy Ease Selected Keyframes (F9)', badge: 'Anim', run: () => { studio.setActiveView('studio'); studio.applyKeyframeAssistant('easy-ease'); studio.setActiveModal('none'); } },
+      { id: 'cmd_smart_dup', title: 'Smart Duplicate Hierarchy (Ctrl+Alt+D)', badge: 'Edit', run: () => { studio.setActiveView('studio'); studio.duplicateSelectedLayers(true); studio.setActiveModal('none'); } },
+      { id: 'cmd_render', title: 'Queue & Open Render Queue (Ctrl+M)', badge: 'Export', run: () => { studio.setActiveView('studio'); studio.addCurrentCompToRenderQueue(); studio.setActiveModal('none'); } },
       { id: 'cmd_theme_dark', title: 'Theme: Linear Obsidian (Dark AAA)', badge: 'Theme', run: () => { studio.updatePreferences({ theme: 'dark' }); studio.setActiveModal('none'); } },
       { id: 'cmd_theme_light', title: 'Theme: Nordic Daylight (Light AAA)', badge: 'Theme', run: () => { studio.updatePreferences({ theme: 'light' }); studio.setActiveModal('none'); } },
       { id: 'cmd_theme_hc', title: 'Theme: OLED Pure Contrast (AAA+)', badge: 'Theme', run: () => { studio.updatePreferences({ theme: 'high-contrast' }); studio.setActiveModal('none'); } },
@@ -150,8 +151,8 @@ export const ModalsAndOverlays: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Non-Modal 8-Step Interactive Spotlight Walkthrough */}
-      {tourStepData && studio.activeModal === 'none' && (
+      {/* Floating Non-Modal 10-Module Interactive Feature Tutorial Spotlight */}
+      {tourStepData && studio.activeView === 'studio' && studio.activeModal === 'none' && (
         <div
           role="dialog"
           aria-label="Interactive Studio Walkthrough"
@@ -159,9 +160,9 @@ export const ModalsAndOverlays: React.FC = () => {
             position: 'fixed',
             right: 20,
             bottom: 36,
-            width: 396,
+            width: 416,
             background: 'var(--bg-panel)',
-            border: '1.5px solid var(--accent-amber)',
+            border: `1.5px solid ${studio.completedTutorialModules.includes(tourStepData.moduleId) ? 'var(--status-ok)' : 'var(--accent-amber)'}`,
             borderRadius: 10,
             boxShadow: 'var(--shadow-modal)',
             padding: 16,
@@ -171,13 +172,42 @@ export const ModalsAndOverlays: React.FC = () => {
             gap: 10,
           }}
         >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <select
+              className="studio-select"
+              aria-label="Jump to Tutorial Module"
+              style={{ flex: 1, fontWeight: 600 }}
+              value={tourStepData.stepIndex}
+              onChange={(e) => studio.setTourStep(Number(e.target.value))}
+            >
+              {INTERACTIVE_TUTORIAL_STEPS.map((st) => (
+                <option key={st.moduleId} value={st.stepIndex}>
+                  {studio.completedTutorialModules.includes(st.moduleId) ? '✓ ' : ''}
+                  {String(st.stepIndex + 1).padStart(2, '0')}. {st.title}
+                </option>
+              ))}
+            </select>
+            <button
+              className="studio-btn ghost"
+              style={{ minHeight: 24, padding: '2px 7px' }}
+              title="Close Tutorial Overlay (Reopen anytime via F2 or Home)"
+              onClick={studio.finishInteractiveTour}
+            >
+              ✕
+            </button>
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="badge amber">{tourStepData.badge}</span>
+            <span className={`badge ${studio.completedTutorialModules.includes(tourStepData.moduleId) ? 'ok' : 'amber'}`}>
+              {studio.completedTutorialModules.includes(tourStepData.moduleId)
+                ? `✓ ${tourStepData.badge} · Mastered`
+                : tourStepData.badge}
+            </span>
             <span className="kbd-chip">{tourStepData.shortcutHint}</span>
           </div>
 
           <div>
-            <h3 style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 5 }}>
+            <h3 style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
               {tourStepData.title}
             </h3>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
@@ -187,15 +217,22 @@ export const ModalsAndOverlays: React.FC = () => {
 
           <div
             style={{
-              padding: '7px 9px',
+              padding: '8px 10px',
               borderRadius: 6,
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-subtle)',
-              fontSize: 11,
+              background: 'var(--bg-inset)',
+              border: `1px solid ${studio.completedTutorialModules.includes(tourStepData.moduleId) ? 'var(--status-ok)' : 'var(--border-subtle)'}`,
+              fontSize: 11.5,
               color: 'var(--text-primary)',
             }}
           >
-            <strong style={{ color: 'var(--accent-cyan)' }}>Tip:</strong> {tourStepData.handsOnTip}
+            <strong style={{ color: studio.completedTutorialModules.includes(tourStepData.moduleId) ? 'var(--status-ok)' : 'var(--accent-cyan)' }}>
+              {studio.completedTutorialModules.includes(tourStepData.moduleId) ? '✓ Hands-On Goal Accomplished:' : 'Hands-On Goal:'}
+            </strong>{' '}
+            {tourStepData.handsOnChallenge}
+          </div>
+
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            <strong style={{ color: 'var(--text-secondary)' }}>Pro Tip:</strong> {tourStepData.handsOnTip}
           </div>
 
           <button
@@ -208,36 +245,37 @@ export const ModalsAndOverlays: React.FC = () => {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4, borderTop: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', gap: 4 }}>
-              {INTERACTIVE_TUTORIAL_STEPS.map((st) => (
-                <button
-                  key={st.stepIndex}
-                  aria-label={`Go to step ${st.stepIndex + 1}`}
-                  onClick={() => studio.setTourStep(st.stepIndex)}
-                  style={{
-                    width: st.stepIndex === tourStepData.stepIndex ? 18 : 7,
-                    height: 7,
-                    borderRadius: 999,
-                    border: 'none',
-                    background:
-                      st.stepIndex === tourStepData.stepIndex
-                        ? 'var(--accent-amber)'
-                        : st.stepIndex < tourStepData.stepIndex
-                        ? 'var(--status-ok)'
-                        : 'var(--border-strong)',
-                  }}
-                />
-              ))}
+              {INTERACTIVE_TUTORIAL_STEPS.map((st) => {
+                const done = studio.completedTutorialModules.includes(st.moduleId);
+                return (
+                  <button
+                    key={st.stepIndex}
+                    aria-label={`Go to module ${st.stepIndex + 1}`}
+                    onClick={() => studio.setTourStep(st.stepIndex)}
+                    style={{
+                      width: st.stepIndex === tourStepData.stepIndex ? 16 : 7,
+                      height: 7,
+                      borderRadius: 999,
+                      border: 'none',
+                      background:
+                        st.stepIndex === tourStepData.stepIndex
+                          ? 'var(--accent-amber)'
+                          : done
+                          ? 'var(--status-ok)'
+                          : 'var(--border-strong)',
+                    }}
+                  />
+                );
+              })}
             </div>
 
             <div style={{ display: 'flex', gap: 5 }}>
               <button
                 className="studio-btn ghost"
-                onClick={() => {
-                  studio.finishInteractiveTour();
-                  studio.setActiveModal('guide');
-                }}
+                onClick={() => studio.setActiveView('home')}
+                title="View all 10 modules on PreEffects Home Hub"
               >
-                Handbook
+                Home Hub
               </button>
               {tourStepData.stepIndex > 0 && (
                 <button className="studio-btn" onClick={() => studio.setTourStep(tourStepData.stepIndex - 1)}>
@@ -369,9 +407,9 @@ export const ModalsAndOverlays: React.FC = () => {
               <button
                 className="studio-btn primary"
                 style={{ width: '100%', padding: '7px 10px' }}
-                onClick={studio.startInteractiveTour}
+                onClick={() => studio.startInteractiveTutorialModule(0)}
               >
-                ▶ Start 8-Step Spotlight Walkthrough
+                ▶ Start 10-Module Interactive Tutorial
               </button>
             </div>
 

@@ -1,4 +1,5 @@
 // EXCEED-01 & EXCEED-06: Bidirectional Layer <-> DAG Node Graph Compiler & Synchronizer
+// BUG-R3-11 Fixed: Dynamic horizontal column layout so layers with >= 3 effects never overlap Merge/Output nodes!
 
 import { Composition, GraphNodeItem, NodeGraphState } from './types';
 import { createEffectInstance } from '../effects/registry';
@@ -12,8 +13,11 @@ export function buildNodeGraphFromComp(comp: Composition): NodeGraphState {
   const nodes: GraphNodeItem[] = [];
   let prevMergeId: string | undefined;
 
-  // Iterate bottom-to-top so composite merges naturally flow into final Output
   const ordered = [...comp.layers].reverse();
+  const maxEffects = ordered.reduce((m, l) => Math.max(m, l.effects.length), 0);
+  const mergeBaseX = Math.max(720, 290 + maxEffects * 200 + 40);
+  const outputBaseX = mergeBaseX + 260;
+
   ordered.forEach((layer, rowIdx) => {
     const baseY = 90 + rowIdx * 115;
     const srcId = `node_src_${layer.id}`;
@@ -49,7 +53,9 @@ export function buildNodeGraphFromComp(comp: Composition): NodeGraphState {
     });
 
     const mergeId = `node_mrg_${layer.id}`;
-    const cMrg = existingCoords.get(mergeId) ?? { x: 720, y: baseY };
+    const savedMrg = existingCoords.get(mergeId);
+    const mrgX = savedMrg ? Math.max(savedMrg.x, mergeBaseX) : mergeBaseX;
+    const mrgY = savedMrg?.y ?? baseY;
     const mergeInputs = prevMergeId ? [prevMergeId, tailId] : [tailId];
     if (layer.trackMatteLayerId) {
       mergeInputs.push(`node_src_${layer.trackMatteLayerId}`);
@@ -59,8 +65,8 @@ export function buildNodeGraphFromComp(comp: Composition): NodeGraphState {
       kind: 'merge',
       label: `Merge (${layer.blendMode})`,
       layerId: layer.id,
-      x: cMrg.x,
-      y: cMrg.y,
+      x: mrgX,
+      y: mrgY,
       inputs: mergeInputs,
     });
     prevMergeId = mergeId;
@@ -74,13 +80,13 @@ export function buildNodeGraphFromComp(comp: Composition): NodeGraphState {
   }
 
   const outId = `node_out_${comp.id}`;
-  const cOut = existingCoords.get(outId) ?? { x: 980, y: Math.max(120, ordered.length * 55) };
+  const savedOut = existingCoords.get(outId);
   nodes.push({
     id: outId,
     kind: 'output',
     label: `Comp Output (${comp.width}x${comp.height})`,
-    x: cOut.x,
-    y: cOut.y,
+    x: savedOut ? Math.max(savedOut.x, outputBaseX) : outputBaseX,
+    y: savedOut?.y ?? Math.max(120, ordered.length * 55),
     inputs: prevMergeId ? [prevMergeId] : [],
   });
 

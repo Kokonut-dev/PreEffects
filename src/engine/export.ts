@@ -240,20 +240,34 @@ export function executeRenderQueueJob(
   const startF = Math.max(0, job.startFrame);
   const endF = Math.max(startF, job.endFrame);
   const totalFrames = endF - startF + 1;
+  const needsMultiFrame = job.outputModules.some((m) =>
+    m.format === 'gif' ||
+    m.format === 'avi' ||
+    m.format === 'webm' ||
+    m.format === 'mp4-ffmpeg' ||
+    m.format === 'prores-ffmpeg',
+  );
+  const needsAnyVideoFrame = job.outputModules.some((m) => m.format !== 'wav' || m.aovPasses.some((p) => p !== 'beauty'));
+  const renderEndF = needsMultiFrame ? endF : startF;
+  const renderTotal = Math.max(1, renderEndF - startF + 1);
   const beautyFrames: Uint8ClampedArray[] = [];
-  let frameW = 160;
-  let frameH = 90;
+  let frameW = Math.max(16, Math.round(comp.width / job.resolutionDivisor));
+  let frameH = Math.max(16, Math.round(comp.height / job.resolutionDivisor));
 
-  for (let f = startF; f <= endF; f++) {
-    const res = renderCompositionFrame(comp, f / comp.fps, project, {
-      resolutionDivisor: job.resolutionDivisor,
-      isFinalRender: true,
-      useCache: false,
-    });
-    frameW = res.width;
-    frameH = res.height;
-    beautyFrames.push(res.pixels);
-    onProgress?.(Math.round(((f - startF + 1) / totalFrames) * 100), f);
+  if (needsAnyVideoFrame) {
+    for (let f = startF; f <= renderEndF; f++) {
+      const res = renderCompositionFrame(comp, f / comp.fps, project, {
+        resolutionDivisor: job.resolutionDivisor,
+        isFinalRender: true,
+        useCache: false,
+      });
+      frameW = res.width;
+      frameH = res.height;
+      beautyFrames.push(res.pixels);
+      onProgress?.(Math.round(((f - startF + 1) / renderTotal) * 100), f);
+    }
+  } else {
+    onProgress?.(100, startF);
   }
 
   const artifacts: NonNullable<RenderQueueItem['renderedArtifacts']> = [];

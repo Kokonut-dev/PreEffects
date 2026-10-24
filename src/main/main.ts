@@ -26,7 +26,7 @@ async function createStudioWindow(): Promise<void> {
     height: 960,
     minWidth: 1120,
     minHeight: 680,
-    backgroundColor: '#0E1015',
+    backgroundColor: '#0b0c0e',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -50,6 +50,13 @@ async function createStudioWindow(): Promise<void> {
 }
 
 function registerDesktopIpcHandlers(): void {
+  ipcMain.handle('preeffects:app-info', () => ({
+    version: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    isPackaged: app.isPackaged,
+  }));
+
   ipcMain.handle('preeffects:open-project', async () => {
     if (!mainWindow) return null;
     const res = await dialog.showOpenDialog(mainWindow, {
@@ -103,6 +110,8 @@ function buildNativeMenu(): void {
     {
       label: 'File',
       submenu: [
+        { label: 'PreEffects Home Hub', accelerator: 'Alt+H', click: () => mainWindow?.webContents.send('menu:action', 'view.home') },
+        { type: 'separator' },
         { label: 'New Project', accelerator: 'CmdOrCtrl+Alt+N', click: () => mainWindow?.webContents.send('menu:action', 'file.new') },
         { label: 'Open Project…', accelerator: 'CmdOrCtrl+O', click: () => mainWindow?.webContents.send('menu:action', 'file.open') },
         { label: 'Save Project…', accelerator: 'CmdOrCtrl+S', click: () => mainWindow?.webContents.send('menu:action', 'file.save') },
@@ -127,8 +136,17 @@ function buildNativeMenu(): void {
     {
       label: 'View',
       submenu: [
+        { label: 'Toggle Home / Studio', accelerator: 'Alt+H', click: () => mainWindow?.webContents.send('menu:action', 'view.home') },
+        { type: 'separator' },
         { role: 'togglefullscreen' },
         { role: 'toggleDevTools' },
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        { label: 'Interactive Feature Tutorial', click: () => mainWindow?.webContents.send('menu:action', 'help.tutorial') },
+        { label: 'Studio Guide & Handbook', accelerator: 'F1', click: () => mainWindow?.webContents.send('menu:action', 'help.guide') },
       ],
     },
   ];

@@ -1,6 +1,7 @@
 import { PaintStroke, PuppetPin } from './types';
 import { clamp, lerp } from '../utils/math';
 import { parseHexColor } from '../utils/color';
+import { globalBufferPool } from '../utils/bufferPool';
 
 // Non-destructive timeline-recorded Brush, Clone Stamp, and Eraser engine
 export function renderPaintStrokesOnBuffer(
@@ -14,7 +15,12 @@ export function renderPaintStrokesOnBuffer(
 ): void {
   if (strokes.length === 0) return;
   const frameDur = 1 / Math.max(1, fps);
-  const sourceSnapshot = strokes.some((s) => s.tool === 'clone') ? new Uint8ClampedArray(buf) : null;
+  const needsClone = strokes.some((s) => s.tool === 'clone');
+  let sourceSnapshot: Uint8ClampedArray | null = null;
+  if (needsClone) {
+    sourceSnapshot = globalBufferPool.acquire(buf.length, false);
+    sourceSnapshot.set(buf);
+  }
 
   for (const st of strokes) {
     if (time < st.startTime) continue;
@@ -31,7 +37,10 @@ export function renderPaintStrokesOnBuffer(
     const endIdx = Math.max(1, Math.ceil(pts.length * revealRatio));
     const [cr, cg, cb] = parseHexColor(st.color);
     const rad = Math.max(1, st.radius * scaleFactor);
+    const radSq = rad * rad;
     const op = clamp(st.opacity / 100, 0, 1);
+    const hardFill = st.hardness >= 95;
+    const hardExp = 1.5 - st.hardness / 100;
 
     const stampAt = (cx: number, cy: number) => {
       const x0 = Math.max(0, Math.floor(cx - rad));
@@ -39,10 +48,13 @@ export function renderPaintStrokesOnBuffer(
       const y0 = Math.max(0, Math.floor(cy - rad));
       const y1 = Math.min(h - 1, Math.ceil(cy + rad));
       for (let y = y0; y <= y1; y++) {
+        const dy = y - cy;
+        const dySq = dy * dy;
         for (let x = x0; x <= x1; x++) {
-          const dist = Math.hypot(x - cx, y - cy);
-          if (dist > rad) continue;
-          const falloff = st.hardness >= 95 ? 1 : Math.pow(clamp(1 - dist / rad, 0, 1), 1.5 - (st.hardness / 100));
+          const dx = x - cx;
+          const dSq = dx * dx + dySq;
+          if (dSq > radSq) continue;
+          const falloff = hardFill ? 1 : Math.pow(clamp(1 - Math.sqrt(dSq) / rad, 0, 1), hardExp);
           const strength = falloff * op;
           const o = (y * w + x) * 4;
           if (st.tool === 'eraser') {
@@ -53,15 +65,24 @@ export function renderPaintStrokesOnBuffer(
             const sx = clamp(x + ox, 0, w - 1);
             const sy = clamp(y + oy, 0, h - 1);
             const sp = (sy * w + sx) * 4;
-            buf[o] = lerp(buf[o], sourceSnapshot[sp], strength);
-            buf[o + 1] = lerp(buf[o + 1], sourceSnapshot[sp + 1], strength);
-            buf[o + 2] = lerp(buf[o + 2], sourceSnapshot[sp + 2], strength);
-            buf[o + 3] = Math.max(buf[o + 3], Math.round(sourceSnapshot[sp + 3] * strength));
+            const srcA = (sourceSnapshot[sp + 3] / 255) * strength;
+            const dstA = buf[o + 3] / 255;
+            const outA = srcA + dstA * (1 - srcA);
+            if (outA > 1e-4) {
+              buf[o] = Math.round((sourceSnapshot[sp] * srcA + buf[o] * dstA * (1 - srcA)) / outA);
+              buf[o + 1] = Math.round((sourceSnapshot[sp + 1] * srcA + buf[o + 1] * dstA * (1 - srcA)) / outA);
+              buf[o + 2] = Math.round((sourceSnapshot[sp + 2] * srcA + buf[o + 2] * dstA * (1 - srcA)) / outA);
+              buf[o + 3] = Math.round(outA * 255);
+            }
           } else {
-            buf[o] = lerp(buf[o], cr, strength);
-            buf[o + 1] = lerp(buf[o + 1], cg, strength);
-            buf[o + 2] = lerp(buf[o + 2], cb, strength);
-            buf[o + 3] = Math.max(buf[o + 3], Math.round(strength * 255));
+            const dstA = buf[o + 3] / 255;
+            const outA = strength + dstA * (1 - strength);
+            if (outA > 1e-4) {
+              buf[o] = Math.round((cr * strength + buf[o] * dstA * (1 - strength)) / outA);
+              buf[o + 1] = Math.round((cg * strength + buf[o + 1] * dstA * (1 - strength)) / outA);
+              buf[o + 2] = Math.round((cb * strength + buf[o + 2] * dstA * (1 - strength)) / outA);
+              buf[o + 3] = Math.round(outA * 255);
+            }
           }
         }
       }
@@ -80,6 +101,10 @@ export function renderPaintStrokesOnBuffer(
       }
     }
   }
+
+  if (sourceSnapshot) {
+    globalBufferPool.release(sourceSnapshot);
+  }
 }
 
 // Puppet Deform Inverse-Distance Mesh Warper (PNT-06)
@@ -95,30 +120,37 @@ export function applyPuppetPinsDeform(
     dst.set(src);
     return;
   }
+  const scaledPins = pins.map((pin) => ({
+    px: pin.currentX * scaleFactor,
+    py: pin.currentY * scaleFactor,
+    dx: (pin.restX - pin.currentX) * scaleFactor,
+    dy: (pin.restY - pin.currentY) * scaleFactor,
+    k: pin.kind === 'starch' ? 3 : 1,
+  }));
+  const src32 = new Uint32Array(src.buffer, src.byteOffset, w * h);
+  const dst32 = new Uint32Array(dst.buffer, dst.byteOffset, w * h);
+
   for (let y = 0; y < h; y++) {
+    const rowOff = y * w;
     for (let x = 0; x < w; x++) {
       let sumW = 0, dxAcc = 0, dyAcc = 0;
-      for (const pin of pins) {
-        const px = pin.currentX * scaleFactor;
-        const py = pin.currentY * scaleFactor;
-        const rx = pin.restX * scaleFactor;
-        const ry = pin.restY * scaleFactor;
-        const d2 = (x - px) * (x - px) + (y - py) * (y - py) + 64;
-        const weight = (pin.kind === 'starch' ? 3 : 1) / d2;
+      for (let i = 0; i < scaledPins.length; i++) {
+        const p = scaledPins[i];
+        const d2 = (x - p.px) * (x - p.px) + (y - p.py) * (y - p.py) + 64;
+        const weight = p.k / d2;
         sumW += weight;
-        dxAcc += (rx - px) * weight;
-        dyAcc += (ry - py) * weight;
+        dxAcc += p.dx * weight;
+        dyAcc += p.dy * weight;
       }
-      const sx = clamp(Math.round(x + dxAcc / (sumW || 1)), 0, w - 1);
-      const sy = clamp(Math.round(y + dyAcc / (sumW || 1)), 0, h - 1);
-      const sIdx = (sy * w + sx) * 4;
-      const dIdx = (y * w + x) * 4;
-      dst[dIdx] = src[sIdx]; dst[dIdx + 1] = src[sIdx + 1]; dst[dIdx + 2] = src[sIdx + 2]; dst[dIdx + 3] = src[sIdx + 3];
+      const invW = 1 / (sumW || 1);
+      const sx = clamp(Math.round(x + dxAcc * invW), 0, w - 1);
+      const sy = clamp(Math.round(y + dyAcc * invW), 0, h - 1);
+      dst32[rowOff + x] = src32[sy * w + sx];
     }
   }
 }
 
-// 1-Point / 2-Point / 4-Point Normalized Cross-Correlation (NCC) Patch Motion Tracker
+// 1-Point / 2-Point / 4-Point Patch Motion Tracker with Branch-and-Bound Early-Exit SAD Pruning (OPT-R3-05)
 export function trackFeaturePatchNcc(
   refFrame: Uint8ClampedArray,
   targetFrame: Uint8ClampedArray,
@@ -129,24 +161,30 @@ export function trackFeaturePatchNcc(
   patchRadius = 5,
   searchRadius = 14,
 ): { x: number; y: number; confidence: number } {
-  let bestX = refX;
-  let bestY = refY;
+  const rx = Math.round(refX);
+  const ry = Math.round(refY);
+  let bestX = rx;
+  let bestY = ry;
   let bestSad = Infinity;
 
   for (let sy = -searchRadius; sy <= searchRadius; sy++) {
+    const cy = ry + sy;
+    if (cy < patchRadius || cy >= h - patchRadius) continue;
     for (let sx = -searchRadius; sx <= searchRadius; sx++) {
-      const cx = refX + sx;
-      const cy = refY + sy;
-      if (cx < patchRadius || cx >= w - patchRadius || cy < patchRadius || cy >= h - patchRadius) continue;
+      const cx = rx + sx;
+      if (cx < patchRadius || cx >= w - patchRadius) continue;
       let sad = 0;
-      for (let py = -patchRadius; py <= patchRadius; py++) {
+      outerPatch: for (let py = -patchRadius; py <= patchRadius; py++) {
+        const refRow = (ry + py) * w;
+        const tgtRow = (cy + py) * w;
         for (let px = -patchRadius; px <= patchRadius; px++) {
-          const iRef = ((Math.round(refY) + py) * w + (Math.round(refX) + px)) * 4;
-          const iTgt = ((Math.round(cy) + py) * w + (Math.round(cx) + px)) * 4;
+          const iRef = (refRow + rx + px) * 4;
+          const iTgt = (tgtRow + cx + px) * 4;
           sad +=
             Math.abs(refFrame[iRef] - targetFrame[iTgt]) +
             Math.abs(refFrame[iRef + 1] - targetFrame[iTgt + 1]) +
             Math.abs(refFrame[iRef + 2] - targetFrame[iTgt + 2]);
+          if (sad >= bestSad) break outerPatch;
         }
       }
       if (sad < bestSad) {
@@ -164,7 +202,7 @@ export function trackFeaturePatchNcc(
   };
 }
 
-// Content-Aware Video Fill — Spatial boundary boundary inward synthesis (TRK-05)
+// Content-Aware Video Fill — Spatial boundary inward synthesis (TRK-05)
 export function synthesizeContentAwareFill(
   rgba: Uint8ClampedArray,
   w: number,

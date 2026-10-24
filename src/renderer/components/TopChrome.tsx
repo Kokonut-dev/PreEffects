@@ -14,6 +14,7 @@ import {
   IconDownload,
   IconEraser,
   IconHand,
+  IconHome,
   IconMoon,
   IconPause,
   IconPen,
@@ -25,6 +26,7 @@ import {
   IconSearch,
   IconShapeRect,
   IconSkipStart,
+  IconSparkles,
   IconStepBack,
   IconStepFwd,
   IconSun,
@@ -104,8 +106,10 @@ export const TopChrome: React.FC = () => {
       id: 'file',
       label: t('menu.file', loc),
       items: [
+        { label: 'PreEffects Home Hub…', shortcut: 'Alt+H', action: () => studio.setActiveView('home') },
         { label: 'Welcome & Studio Templates…', action: () => studio.setActiveModal('welcome') },
         { label: 'New Blank Project', action: () => studio.loadTemplateProject('blank') },
+        { label: 'Open Project (.prex)…', shortcut: 'Ctrl+O', action: () => void studio.openProjectFileLocal() },
         { label: 'Import Media / 3D / CSV / LUT…', shortcut: 'Ctrl+I', action: () => studio.triggerImportDialog() },
         { label: 'Save Project (.prex)…', shortcut: 'Ctrl+S', action: () => void studio.saveProjectFileLocal() },
         { label: 'Collect Files Package Report…', action: () => studio.exportCollectFilesManifest() },
@@ -159,17 +163,19 @@ export const TopChrome: React.FC = () => {
       label: t('menu.effect', loc),
       items: [
         { label: 'Search All 186 Effects…', shortcut: 'Ctrl+K', action: () => studio.setActiveModal('command-palette') },
-        { label: 'Gaussian Blur', action: () => studio.applyEffectToSelectedLayer('fx-gaussian-blur') },
-        { label: 'Lumetri Color Suite', action: () => studio.applyEffectToSelectedLayer('fx-lumetri') },
-        { label: 'Optical Glow', action: () => studio.applyEffectToSelectedLayer('fx-glow') },
-        { label: 'Keylight 1.2 Chroma Keyer', action: () => studio.applyEffectToSelectedLayer('fx-keylight') },
-        { label: 'Fractal Noise', action: () => studio.applyEffectToSelectedLayer('fx-fractal-noise') },
+        { label: 'Gaussian Blur', action: () => studio.applyEffectToSelectedLayer('gaussian-blur') },
+        { label: 'Lumetri Colour Wheels', action: () => studio.applyEffectToSelectedLayer('lumetri-wheels') },
+        { label: 'Optical Glow', action: () => studio.applyEffectToSelectedLayer('glow') },
+        { label: 'Keylight 1.2 Chroma Keyer', action: () => studio.applyEffectToSelectedLayer('keylight-12') },
+        { label: 'Fractal Noise', action: () => studio.applyEffectToSelectedLayer('fractal-noise') },
+        { label: 'Warp Stabilizer VFX', action: () => studio.applyEffectToSelectedLayer('warp-stabilizer-vfx') },
       ],
     },
     {
       id: 'view',
       label: t('menu.view', loc),
       items: [
+        { label: 'Open PreEffects Home Hub', shortcut: 'Alt+H', action: () => studio.setActiveView('home') },
         { label: 'Toggle Timeline ⇄ Node Graph (DAG)', shortcut: 'Shift+N', action: () => studio.setBottomMode(studio.bottomMode === 'nodes' ? 'timeline' : 'nodes') },
         { label: 'Open Speed / Value Graph Editor', shortcut: 'U', action: () => studio.setBottomMode('graph') },
         { label: 'Toggle Minimal Focus Workspace', shortcut: '`', action: () => studio.setActiveWorkspace(studio.activeWorkspace === 'minimal' ? 'standard' : 'minimal') },
@@ -183,8 +189,8 @@ export const TopChrome: React.FC = () => {
       id: 'help',
       label: t('menu.help', loc),
       items: [
+        { label: 'Start 10-Module Interactive Tutorial', shortcut: 'F2', action: () => studio.startInteractiveTutorialModule(0) },
         { label: 'Interactive Studio Guide & Handbook…', shortcut: 'F1', action: () => studio.setActiveModal('guide') },
-        { label: 'Start 8-Step Spotlight Walkthrough', action: () => studio.startInteractiveTour() },
         { label: "What's This? Click-to-Inspect Mode", shortcut: 'Shift+F1', action: () => studio.setWhatsThisMode(!studio.whatsThisMode) },
         { label: 'Keyboard Shortcuts Reference…', action: () => studio.setActiveModal('shortcuts') },
       ],
@@ -240,38 +246,39 @@ export const TopChrome: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <div
+          <button
+            className="studio-btn ghost"
             style={{
+              minHeight: 24,
+              padding: '2px 8px',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 7,
+              gap: 6,
               fontWeight: 700,
-              letterSpacing: '-0.02em',
               color: 'var(--text-primary)',
-              marginRight: 4,
-              cursor: 'pointer',
             }}
-            onClick={() => studio.setActiveModal('welcome')}
-            title="PreEffects Studio — Click for Starter Templates"
+            onClick={() => studio.setActiveView('home')}
+            title="Open PreEffects Home Hub — Projects, Templates & 10-Module Tutorial (Alt+H)"
           >
             <span
               style={{
-                width: 20,
-                height: 20,
-                borderRadius: 5,
+                width: 19,
+                height: 19,
+                borderRadius: 4,
                 background: 'var(--accent-amber)',
                 color: 'var(--accent-on-primary)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 10,
+                fontSize: 9.5,
                 fontWeight: 800,
               }}
             >
-              PE
+              Pr
             </span>
-            <span style={{ fontSize: 12.5 }}>PreEffects</span>
-          </div>
+            <IconHome size={13} />
+            <span style={{ fontSize: 12 }}>Home</span>
+          </button>
 
           <nav style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {menus.map((m) => (
@@ -392,9 +399,19 @@ export const TopChrome: React.FC = () => {
           </button>
 
           <button
-            className={`studio-btn ${studio.activeModal === 'guide' || studio.tourStep !== null ? 'subtle-active' : ''}`}
+            className={`studio-btn ${studio.tourStep !== null ? 'subtle-active' : ''}`}
+            style={{ minHeight: 25, padding: '2px 8px' }}
+            title="Launch 10-Module Interactive Feature Tutorial (F2)"
+            onClick={() => studio.startInteractiveTutorialModule(studio.tourStep ?? 0)}
+          >
+            <IconSparkles size={13} color="var(--accent-amber)" />
+            <span>Tutorial</span>
+          </button>
+
+          <button
+            className={`studio-btn ${studio.activeModal === 'guide' ? 'subtle-active' : ''}`}
             style={{ minHeight: 25, padding: '2px 9px' }}
-            title="Open Interactive Studio Guide & Hands-On Tutorial (F1)"
+            title="Open 8-Chapter Reference Handbook (F1)"
             onClick={() => studio.setActiveModal('guide')}
           >
             <IconBookGuide size={13} />

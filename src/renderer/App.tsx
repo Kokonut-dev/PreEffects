@@ -6,6 +6,7 @@ import { ViewportPanel } from './components/ViewportPanel';
 import { InspectorAndToolsPanel } from './components/InspectorAndToolsPanel';
 import { BottomWorkspacePanel } from './components/BottomWorkspacePanel';
 import { ModalsAndOverlays } from './components/ModalsAndOverlays';
+import { HomePage } from './components/HomePage';
 import { studioRamCache } from '../engine/compositor';
 
 const StudioLayoutInner: React.FC = () => {
@@ -16,6 +17,16 @@ const StudioLayoutInner: React.FC = () => {
   const [bottomH, setBottomH] = useState(292);
   const spot = studio.activeSpotlightRegion;
   const minimal = studio.activeWorkspace === 'minimal';
+
+  // Render Application Homepage anytime activeView === 'home' (startup + Alt+H / Home button)
+  if (studio.activeView === 'home') {
+    return (
+      <>
+        <HomePage />
+        <ModalsAndOverlays />
+      </>
+    );
+  }
 
   const startResize = (
     axis: 'left' | 'right' | 'bottom',
@@ -36,7 +47,16 @@ const StudioLayoutInner: React.FC = () => {
   };
 
   return (
-    <div className="studio-shell" style={{ cursor: studio.whatsThisMode ? 'help' : undefined }}>
+    <div
+      className="studio-shell"
+      style={{ cursor: studio.whatsThisMode ? 'help' : undefined }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={async (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files?.[0];
+        if (file) await studio.importLocalFile(file);
+      }}
+    >
       <div data-tour-active={spot === 'chrome' ? 'true' : undefined}>
         <TopChrome />
       </div>
@@ -229,6 +249,14 @@ const StudioLayoutInner: React.FC = () => {
           <span style={{ color: 'var(--text-muted)' }}>
             {studio.project.bitDepth}-bit · {studio.project.workingColorSpace.toUpperCase()}
           </span>
+          <button
+            className="studio-btn ghost"
+            style={{ minHeight: 18, padding: '0 6px', fontSize: 10.5 }}
+            onClick={() => studio.setActiveView('home')}
+            title="Open PreEffects Home Hub (Alt+H)"
+          >
+            Home <span className="kbd-chip" style={{ minHeight: 14, fontSize: 9 }}>Alt+H</span>
+          </button>
           <button
             className="studio-btn ghost"
             style={{ minHeight: 18, padding: '0 6px', fontSize: 10.5 }}

@@ -1,21 +1,67 @@
 import { Composition, Layer, ObjMeshData, Project, ProjectAsset } from './types';
-import { createDefaultTransform, createId, makeProp } from './factory';
+import { createDefaultTransform, createId } from './factory';
 
 export function normalizePosixPath(p: string): string {
   return p.replace(/\\/g, '/');
 }
 
-export function serializeProjectToPrex(project: Project): string {
+function bytesToBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('base64');
+  }
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  if (typeof Buffer !== 'undefined') {
+    const buf = Buffer.from(b64, 'base64');
+    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
+  const binary = atob(b64);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+export interface SerializePrexOptions {
+  /** Caps embedded binary payloads for 5 MB browser localStorage autosave / vault slots. */
+  lightweightStorage?: boolean;
+}
+
+export function serializeProjectToPrex(project: Project, options: SerializePrexOptions = {}): string {
+  const maxRgbaBytes = options.lightweightStorage ? 262_144 : 16_777_216; // 256 KB vs 16 MB
+  const maxAudioSamples = options.lightweightStorage ? 16_384 : 1_440_000; // ~0.35s vs ~30s @ 48kHz
+
   const sanitized = {
     ...project,
     assets: project.assets.map((a) => {
       const expectedBytes = (a.width ?? 0) * (a.height ?? 0) * 4;
-      const keepFullRgba = a.rgbaBuffer && expectedBytes > 0 && a.rgbaBuffer.length === expectedBytes && expectedBytes <= 262144;
+      const keepRgba =
+        a.rgbaBuffer &&
+        expectedBytes > 0 &&
+        a.rgbaBuffer.length === expectedBytes &&
+        expectedBytes <= maxRgbaBytes;
+      const keepAudio = a.audioSamples && a.audioSamples.length <= maxAudioSamples;
+
+      const rgbaBase64 = keepRgba
+        ? bytesToBase64(new Uint8Array(a.rgbaBuffer!.buffer, a.rgbaBuffer!.byteOffset, a.rgbaBuffer!.byteLength))
+        : undefined;
+      const audioBase64 = keepAudio
+        ? bytesToBase64(new Uint8Array(a.audioSamples!.buffer, a.audioSamples!.byteOffset, a.audioSamples!.byteLength))
+        : undefined;
+
       return {
         ...a,
         path: normalizePosixPath(a.path),
-        rgbaBuffer: keepFullRgba ? Array.from(a.rgbaBuffer!) : undefined,
-        audioSamples: a.audioSamples && a.audioSamples.length <= 16384 ? Array.from(a.audioSamples) : undefined,
+        rgbaBuffer: undefined,
+        audioSamples: undefined,
+        ...(rgbaBase64 ? { rgbaBase64 } : {}),
+        ...(audioBase64 ? { audioBase64 } : {}),
       };
     }),
     renderQueue: project.renderQueue.map((rq) => ({
@@ -23,7 +69,7 @@ export function serializeProjectToPrex(project: Project): string {
       renderedArtifacts: undefined,
     })),
   };
-  return JSON.stringify(sanitized, null, 2);
+  return JSON.stringify(sanitized, null, options.lightweightStorage ? 0 : 2);
 }
 
 export function deserializePrexProject(rawJson: string): Project {
@@ -39,13 +85,38 @@ export function deserializePrexProject(rawJson: string): Project {
   const migrated = parsed as unknown as Project;
   migrated.schemaVersion = '1.0.0';
   migrated.assets = (migrated.assets ?? []).map((a) => {
-    const rawArr = Array.isArray(a.rgbaBuffer) ? new Uint8ClampedArray(a.rgbaBuffer) : undefined;
+    const rec = a as unknown as Record<string, unknown>;
     const expected = (a.width ?? 0) * (a.height ?? 0) * 4;
+    let rgbaBuffer: Uint8ClampedArray | undefined;
+    if (typeof rec.rgbaBase64 === 'string' && expected > 0) {
+      const rawBytes = base64ToBytes(rec.rgbaBase64);
+      if (rawBytes.byteLength === expected) {
+        rgbaBuffer = new Uint8ClampedArray(rawBytes.length);
+        rgbaBuffer.set(rawBytes);
+      }
+    } else if (Array.isArray(a.rgbaBuffer) && expected > 0 && a.rgbaBuffer.length === expected) {
+      rgbaBuffer = new Uint8ClampedArray(a.rgbaBuffer);
+    }
+
+    let audioSamples: Float32Array | undefined;
+    if (typeof rec.audioBase64 === 'string') {
+      const rawAudio = base64ToBytes(rec.audioBase64);
+      if (rawAudio.byteLength % 4 === 0) {
+        const aligned = rawAudio.slice();
+        audioSamples = new Float32Array(aligned.buffer, aligned.byteOffset, aligned.byteLength / 4);
+      }
+    } else if (Array.isArray(a.audioSamples)) {
+      audioSamples = new Float32Array(a.audioSamples);
+    }
+
+    const cleaned = { ...a } as Record<string, unknown>;
+    delete cleaned.rgbaBase64;
+    delete cleaned.audioBase64;
     return {
-      ...a,
+      ...(cleaned as unknown as ProjectAsset),
       path: normalizePosixPath(a.path || ''),
-      rgbaBuffer: rawArr && expected > 0 && rawArr.length === expected ? rawArr : undefined,
-      audioSamples: Array.isArray(a.audioSamples) ? new Float32Array(a.audioSamples) : undefined,
+      rgbaBuffer,
+      audioSamples,
     };
   });
   return migrated;

@@ -143,6 +143,7 @@ export class LruFrameCache {
       const item = this.entries.get(oldestKey)!;
       this.usedBytes -= item.pixels.byteLength;
       this.entries.delete(oldestKey);
+      if (this.lastMruKey === oldestKey) this.lastMruKey = '';
     }
   }
 }
