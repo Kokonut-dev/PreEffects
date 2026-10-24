@@ -439,7 +439,7 @@ export interface SnapshotCommit {
 }
 
 export interface StudioPreferences {
-  theme: 'dark' | 'light' | 'high-contrast' | 'custom';
+  theme: 'dark' | 'light' | 'high-contrast' | 'graphite' | 'custom';
   customThemeTokens?: Record<string, string>;
   locale: 'en' | 'nl' | 'de' | 'ja';
   uiScalePct: number;

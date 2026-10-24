@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
-import { ALL_BLEND_MODES, Layer, ShapeOperator } from '../../engine/types';
+import { ALL_BLEND_MODES, Layer, MaskMode, ShapeOperator } from '../../engine/types';
 import { evaluateProperty } from '../../engine/expressions';
 import { computeVideoScopes } from '../../utils/color';
 import { autoTraceAlphaToMask } from '../../engine/masksAndRoto';
@@ -8,13 +8,15 @@ import { synthesizeContentAwareFill, trackFeaturePatchNcc } from '../../engine/t
 import { renderCompositionFrame } from '../../engine/compositor';
 import { convertAudioSamplesToKeyframes } from '../../engine/animation';
 import { generateSynthAudioBuffer, measureAudioVuDb } from '../../engine/audio';
+import { EFFECTS_CATALOG } from '../../effects/registry';
 import {
   executeStudioScript,
   SAMPLE_AUTOMATION_SCRIPTS,
   ScriptLanguage,
   studioPluginRegistry,
 } from '../../plugins/sdk';
-import { createDefaultTransform, createId } from '../../engine/factory';
+import { buildDefaultLayerForComp, createDefaultTransform, createId } from '../../engine/factory';
+import { OKABE_ITO_SWATCHES } from '../../utils/qolHelpers';
 import { IconDiamond } from './Icons';
 import { ScrubNumberInput } from './ScrubNumberInput';
 
@@ -26,6 +28,7 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
   const [customPluginCode, setCustomPluginCode] = useState<string>(
     `sdk.registerPlugin({ id: "plg-custom-1", name: "Chromatic Film Grain", version: "1.0.0", author: "Local Artist", kind: "effect", description: "Custom sandboxed plugin" });`,
   );
+  const [pluginRev, setPluginRev] = useState<number>(0);
   const [gitCommitMsg, setGitCommitMsg] = useState<string>('Hero Title Polish v2');
 
   const comp = studio.activeComp;
@@ -91,7 +94,7 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
   };
 
   const runMotionTrackerOnComp = () => {
-    if (!comp || !layer) return;
+    if (!comp) return;
     const f0 = renderCompositionFrame(comp, 0, studio.project, { resolutionDivisor: 4, useCache: false });
     const f1 = renderCompositionFrame(comp, 0.5, studio.project, { resolutionDivisor: 4, useCache: false });
     const tracked = trackFeaturePatchNcc(f0.pixels, f1.pixels, f0.width, f0.height, Math.round(f0.width / 2), Math.round(f0.height / 2));
@@ -103,7 +106,7 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
         id: createId('lyr'),
         name: `Track_Data_Null (${Math.round(tracked.confidence * 100)}%)`,
         type: 'null',
-        labelColor: '#34D399',
+        labelColor: '#3DD68C',
         visible: true,
         audioEnabled: false,
         solo: false,
@@ -148,7 +151,6 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--bg-panel)',
-        borderLeft: '1px solid var(--border-subtle)',
         overflow: 'hidden',
       }}
     >
@@ -169,43 +171,62 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
         </div>
       </div>
 
-      {/* TAB 1: LAYER INSPECTOR, TEXT/SHAPE/MASK/3D & EFFECT CONTROLS + PROFILER */}
+      {/* TAB 1: LAYER INSPECTOR, TEXT/SHAPE/SOLID/CAMERA/LIGHT/MASK & EFFECT CONTROLS */}
       {studio.rightTab === 'inspector' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {!layer || !comp ? (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
-              Select a layer in the Timeline or Viewport to inspect Transform, Effects, Masks, Text &amp; 3D Material properties.
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+              Select a layer in the Timeline or click <strong>+ Add Layer</strong> in the toolbar to inspect properties.
             </div>
           ) : (
             <>
-              {/* Selected Layer Header */}
-              <div
-                style={{
-                  padding: 8,
-                  borderRadius: 5,
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border-subtle)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
-                }}
-              >
+              {/* Identity, Okabe-Ito Label Swatches, Blend Mode & Track Matte */}
+              <div className="inspector-card">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                  <span className="layer-kind-pill">{layer.type.toUpperCase()}</span>
                   <input
                     aria-label="Selected Layer Name"
                     className="studio-input"
-                    style={{ fontWeight: 700, flex: 1 }}
+                    style={{ fontWeight: 600, flex: 1 }}
                     value={layer.name}
                     onChange={(e) => {
                       const val = e.target.value;
-                      studio.commitProjectChange('Rename Layer', (draft) => {
-                        const c = draft.compositions.find((x) => x.id === draft.activeCompId);
-                        const l = c?.layers.find((x) => x.id === layer.id);
-                        if (l) l.name = val;
-                      }, `rename_${layer.id}`);
+                      studio.commitProjectChange(
+                        'Rename Layer',
+                        (draft) => {
+                          const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+                          const l = c?.layers.find((x) => x.id === layer.id);
+                          if (l) l.name = val;
+                        },
+                        `rename_${layer.id}`,
+                      );
                     }}
                   />
-                  <span className="badge amber">{layer.type.toUpperCase()}</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                  <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Label:</span>
+                  {OKABE_ITO_SWATCHES.map((hex) => (
+                    <button
+                      key={hex}
+                      title={`Set Label ${hex}`}
+                      onClick={() =>
+                        studio.commitProjectChange('Set Label Color', (draft) => {
+                          const l = draft.compositions
+                            .find((c) => c.id === draft.activeCompId)
+                            ?.layers.find((x) => x.id === layer.id);
+                          if (l) l.labelColor = hex;
+                        })
+                      }
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        background: hex,
+                        border: layer.labelColor === hex ? '2px solid var(--text-primary)' : '1px solid rgba(0,0,0,0.25)',
+                      }}
+                    />
+                  ))}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -225,7 +246,9 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                       }}
                     >
                       {ALL_BLEND_MODES.map((m) => (
-                        <option key={m} value={m}>{m}</option>
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -262,14 +285,12 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
               </div>
 
               {/* Transform 2D / 3D Controls */}
-              <div style={{ padding: 8, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                    Transform {layer.threeD ? '(3D XYZ)' : '(2D)'}
-                  </span>
+              <div className="inspector-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="section-eyebrow">Transform {layer.threeD ? '(3D XYZ)' : '(2D)'}</span>
                   <button
-                    className={`studio-btn ${layer.threeD ? 'primary' : ''}`}
-                    style={{ padding: '1px 6px', fontSize: 10 }}
+                    className={`studio-btn ${layer.threeD ? 'subtle-active' : ''}`}
+                    style={{ minHeight: 22, padding: '1px 7px', fontSize: 10.5 }}
                     onClick={() => {
                       studio.commitProjectChange('Toggle 3D Layer Switch', (draft) => {
                         const c = draft.compositions.find((x) => x.id === draft.activeCompId);
@@ -278,26 +299,26 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                       });
                     }}
                   >
-                    3D Layer
+                    3D Space
                   </button>
                 </div>
 
                 {(['position', 'scale', 'anchorPoint'] as const).map((vecKey) => {
                   const val = evaluateProperty(layer.transform[vecKey], studio.currentTime, layer, comp, studio.project).value;
                   return (
-                    <div key={vecKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5, gap: 4 }}>
+                    <div key={vecKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
                       <button
                         className="studio-btn ghost"
-                        style={{ padding: 2 }}
+                        style={{ minHeight: 22, padding: '2px 4px' }}
                         title={`Toggle Keyframe on ${vecKey}`}
                         onClick={() => studio.toggleKeyframeOnTransform(vecKey)}
                       >
                         <IconDiamond active={layer.transform[vecKey].animated} />
+                        <span style={{ textTransform: 'capitalize' }}>
+                          {vecKey === 'anchorPoint' ? 'Anchor' : vecKey}
+                        </span>
                       </button>
-                      <span style={{ width: 68, fontSize: 11, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
-                        {vecKey === 'anchorPoint' ? 'Anchor' : vecKey}
-                      </span>
-                      <div style={{ display: 'flex', gap: 3, flex: 1 }}>
+                      <div style={{ display: 'flex', gap: 4 }}>
                         {[0, 1, ...(layer.threeD ? [2] : [])].map((axis) => (
                           <ScrubNumberInput
                             key={axis}
@@ -312,102 +333,243 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                   );
                 })}
 
+                {layer.threeD && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)', paddingLeft: 6 }}>Rot X / Y</span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <ScrubNumberInput
+                        suffix="°"
+                        value={evaluateProperty(layer.transform.rotationX, studio.currentTime, layer, comp, studio.project).value}
+                        onChange={(nv) => updateTransformScalar('rotationX', nv)}
+                      />
+                      <ScrubNumberInput
+                        suffix="°"
+                        value={evaluateProperty(layer.transform.rotationY, studio.currentTime, layer, comp, studio.project).value}
+                        onChange={(nv) => updateTransformScalar('rotationY', nv)}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {(['rotationZ', 'opacity'] as const).map((scKey) => {
                   const val = evaluateProperty(layer.transform[scKey], studio.currentTime, layer, comp, studio.project).value;
                   return (
-                    <div key={scKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 4 }}>
+                    <div key={scKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                       <button
                         className="studio-btn ghost"
-                        style={{ padding: 2 }}
+                        style={{ minHeight: 22, padding: '2px 4px' }}
                         onClick={() => studio.toggleKeyframeOnTransform(scKey)}
                       >
                         <IconDiamond active={layer.transform[scKey].animated} />
+                        <span>{scKey === 'rotationZ' ? 'Rotation Z' : 'Opacity'}</span>
                       </button>
-                      <span style={{ width: 68, fontSize: 11, color: 'var(--text-secondary)' }}>
-                        {scKey === 'rotationZ' ? 'Rotation °' : 'Opacity %'}
-                      </span>
-                      <input
-                        type="range"
-                        min={scKey === 'opacity' ? 0 : -180}
-                        max={scKey === 'opacity' ? 100 : 180}
-                        value={Math.round(val)}
-                        onChange={(e) => updateTransformScalar(scKey, Number(e.target.value))}
-                        style={{ flex: 1 }}
-                      />
-                      <span className="mono" style={{ width: 38, textAlign: 'right', fontSize: 11 }}>
-                        {Math.round(val)}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="range"
+                          min={scKey === 'opacity' ? 0 : -180}
+                          max={scKey === 'opacity' ? 100 : 180}
+                          value={Math.round(val)}
+                          onChange={(e) => updateTransformScalar(scKey, Number(e.target.value))}
+                          style={{ width: 78 }}
+                        />
+                        <ScrubNumberInput
+                          min={scKey === 'opacity' ? 0 : undefined}
+                          max={scKey === 'opacity' ? 100 : undefined}
+                          suffix={scKey === 'opacity' ? '%' : '°'}
+                          value={val}
+                          onChange={(nv) => updateTransformScalar(scKey, nv)}
+                        />
+                      </div>
                     </div>
                   );
                 })}
               </div>
 
+              {/* BUG-P2-03 Fix: Contextual Solid Matte Color Editor */}
+              {(layer.type === 'solid' || layer.type === 'guide') && (
+                <div className="inspector-card">
+                  <span className="section-eyebrow">Solid Fill Color</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Matte Swatch</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                        {layer.solidColor ?? '#263042'}
+                      </span>
+                      <input
+                        type="color"
+                        value={layer.solidColor ?? '#263042'}
+                        onChange={(e) => {
+                          const col = e.target.value;
+                          studio.commitProjectChange('Change Solid Color', (draft) => {
+                            const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                            if (l) l.solidColor = col;
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* BUG-P2-03 Fix: Contextual 3D Camera Optics & DoF Editor */}
+              {layer.type === 'camera' && layer.cameraSettings && (
+                <div className="inspector-card">
+                  <span className="section-eyebrow">3D Camera Optics &amp; Depth of Field</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Focal Length</span>
+                    <ScrubNumberInput
+                      min={12}
+                      max={200}
+                      suffix="mm"
+                      value={layer.cameraSettings.focalLengthMm}
+                      onChange={(v) =>
+                        studio.commitProjectChange('Set Camera Focal Length', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.cameraSettings) l.cameraSettings.focalLengthMm = v;
+                        })
+                      }
+                    />
+                  </div>
+                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Depth of Field Blur</span>
+                    <input
+                      type="checkbox"
+                      checked={layer.cameraSettings.depthOfField}
+                      onChange={(e) =>
+                        studio.commitProjectChange('Toggle Camera DoF', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.cameraSettings) l.cameraSettings.depthOfField = e.target.checked;
+                        })
+                      }
+                    />
+                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Focus Distance</span>
+                    <ScrubNumberInput
+                      min={50}
+                      max={5000}
+                      suffix="px"
+                      value={layer.cameraSettings.focusDistance}
+                      onChange={(v) =>
+                        studio.commitProjectChange('Set Camera Focus Distance', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.cameraSettings) l.cameraSettings.focusDistance = v;
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* BUG-P2-03 Fix: Contextual 3D Light Editor */}
+              {layer.type === 'light' && layer.lightSettings && (
+                <div className="inspector-card">
+                  <span className="section-eyebrow">3D Light Rig</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Light Type</span>
+                    <select
+                      className="studio-select"
+                      value={layer.lightSettings.lightType}
+                      onChange={(e) =>
+                        studio.commitProjectChange('Set Light Type', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.lightSettings) l.lightSettings.lightType = e.target.value as typeof l.lightSettings.lightType;
+                        })
+                      }
+                    >
+                      <option value="point">Point Light</option>
+                      <option value="spot">Spot Light</option>
+                      <option value="parallel">Parallel Directional</option>
+                      <option value="ambient">Ambient Fill</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Intensity</span>
+                    <ScrubNumberInput
+                      min={0}
+                      max={400}
+                      suffix="%"
+                      value={layer.lightSettings.intensity}
+                      onChange={(v) =>
+                        studio.commitProjectChange('Set Light Intensity', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.lightSettings) l.lightSettings.intensity = v;
+                        })
+                      }
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Tint Color</span>
+                    <input
+                      type="color"
+                      value={layer.lightSettings.color}
+                      onChange={(e) =>
+                        studio.commitProjectChange('Set Light Color', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.lightSettings) l.lightSettings.color = e.target.value;
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Typography & Per-Character Text Animator Section */}
               {layer.type === 'text' && layer.textData && (
-                <div style={{ padding: 8, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-amber)' }}>
-                    Character, Paragraph &amp; Text Animators
-                  </div>
+                <div className="inspector-card">
+                  <span className="section-eyebrow">Typography &amp; Text Animators</span>
                   <textarea
                     rows={2}
                     className="studio-input"
                     value={layer.textData.text}
                     onChange={(e) => {
                       const txt = e.target.value;
-                      studio.commitProjectChange('Edit Text Content', (draft) => {
-                        const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
-                        if (l?.textData) l.textData.text = txt;
-                      }, `txt_${layer.id}`);
+                      studio.commitProjectChange(
+                        'Edit Text Content',
+                        (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.textData) l.textData.text = txt;
+                        },
+                        `txt_${layer.id}`,
+                      );
                     }}
                   />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5 }}>
-                    <div>
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Size px</span>
-                      <input
-                        type="number"
-                        className="studio-input mono"
-                        style={{ width: '100%' }}
-                        value={layer.textData.fontSize}
-                        onChange={(e) => {
-                          const sz = Number(e.target.value);
-                          studio.commitProjectChange('Font Size', (draft) => {
-                            const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
-                            if (l?.textData) l.textData.fontSize = sz;
-                          });
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Tracking</span>
-                      <input
-                        type="number"
-                        className="studio-input mono"
-                        style={{ width: '100%' }}
-                        value={layer.textData.tracking}
-                        onChange={(e) => {
-                          const tr = Number(e.target.value);
-                          studio.commitProjectChange('Text Tracking', (draft) => {
-                            const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
-                            if (l?.textData) l.textData.tracking = tr;
-                          });
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Fill Color</span>
-                      <input
-                        type="color"
-                        style={{ width: '100%', height: 24, border: 'none', background: 'none' }}
-                        value={layer.textData.fillColor}
-                        onChange={(e) => {
-                          const col = e.target.value;
-                          studio.commitProjectChange('Text Color', (draft) => {
-                            const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
-                            if (l?.textData) l.textData.fillColor = col;
-                          });
-                        }}
-                      />
-                    </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between' }}>
+                    <ScrubNumberInput
+                      min={8}
+                      max={400}
+                      suffix="px"
+                      value={layer.textData.fontSize}
+                      onChange={(sz) =>
+                        studio.commitProjectChange('Font Size', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.textData) l.textData.fontSize = sz;
+                        })
+                      }
+                    />
+                    <ScrubNumberInput
+                      min={-50}
+                      max={200}
+                      suffix="trk"
+                      value={layer.textData.tracking}
+                      onChange={(tr) =>
+                        studio.commitProjectChange('Text Tracking', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.textData) l.textData.tracking = tr;
+                        })
+                      }
+                    />
+                    <input
+                      type="color"
+                      value={layer.textData.fillColor}
+                      onChange={(e) => {
+                        const col = e.target.value;
+                        studio.commitProjectChange('Text Fill Color', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l?.textData) l.textData.fillColor = col;
+                        });
+                      }}
+                    />
                   </div>
                   <button
                     className="studio-btn"
@@ -423,8 +585,8 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                           offset: 0,
                           shape: 'smooth',
                           positionOffset: [0, -18, 0],
-                          scaleOffset: [108, 108],
-                          rotationOffset: 4,
+                          scaleOffset: [0, 0],
+                          rotationOffset: 6,
                           opacityOffset: 0,
                           trackingOffset: 4,
                           wigglesPerSecond: 3,
@@ -437,12 +599,12 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                 </div>
               )}
 
-              {/* Vector Shape Layer & 9 Non-Destructive Operators */}
+              {/* Vector Shape Layer & Non-Destructive Operators */}
               {layer.type === 'shape' && layer.shapeContent && (
-                <div style={{ padding: 8, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-cyan)' }}>
+                <div className="inspector-card">
+                  <span className="section-eyebrow">
                     Vector Shape &amp; Operators ({layer.shapeContent.operators.length})
-                  </div>
+                  </span>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
                     <select
                       className="studio-select"
@@ -471,7 +633,12 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                             id: createId('sop'),
                             type: opType,
                             enabled: true,
-                            params: opType === 'trim-paths' ? { start: 0, end: 75, offset: 0 } : opType === 'repeater' ? { copies: 5, rotation: 28 } : { amount: 16, size: 10 },
+                            params:
+                              opType === 'trim-paths'
+                                ? { start: 0, end: 75, offset: 0 }
+                                : opType === 'repeater'
+                                ? { copies: 5, rotation: 28 }
+                                : { amount: 16, size: 10 },
                           });
                         });
                         e.target.value = '';
@@ -490,16 +657,14 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                 </div>
               )}
 
-              {/* Masks & Auto-Trace Alpha */}
-              <div style={{ padding: 8, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {/* Interactive Masks, Auto-Trace Alpha & Nulls from Path (BUG-P2-03 Fixed) */}
+              <div className="inspector-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                    Masks ({layer.masks.length})
-                  </span>
+                  <span className="section-eyebrow">Masks ({layer.masks.length})</span>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button
                       className="studio-btn"
-                      style={{ padding: '1px 6px', fontSize: 10 }}
+                      style={{ minHeight: 22, padding: '1px 6px', fontSize: 10.5 }}
                       onClick={() => {
                         if (!studio.lastFrameResult) return;
                         const mask = autoTraceAlphaToMask(studio.lastFrameResult.pixels, studio.lastFrameResult.width, studio.lastFrameResult.height);
@@ -510,14 +675,13 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                         studio.notify('Auto-Traced layer alpha into editable Bezier Mask');
                       }}
                     >
-                      Auto-Trace Alpha
+                      Auto-Trace
                     </button>
                     {layer.masks.length > 0 && (
                       <button
                         className="studio-btn"
-                        style={{ padding: '1px 6px', fontSize: 10 }}
+                        style={{ minHeight: 22, padding: '1px 6px', fontSize: 10.5 }}
                         onClick={studio.createNullsFromSelectedMask}
-                        title="Create Null control layers pinned to mask vertices (COMP-19)"
                       >
                         Nulls from Path
                       </button>
@@ -525,39 +689,99 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                   </div>
                 </div>
                 {layer.masks.map((m) => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
-                    <span>{m.name} ({m.vertices.length} pts)</span>
-                    <span className="mono" style={{ color: 'var(--accent-amber)' }}>Feather {m.feather}px</span>
+                  <div
+                    key={m.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 5,
+                      padding: '4px 6px',
+                      borderRadius: 5,
+                      background: 'var(--bg-inset)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <select
+                      className="studio-select"
+                      style={{ minHeight: 22, fontSize: 10.5 }}
+                      value={m.mode}
+                      onChange={(e) =>
+                        studio.commitProjectChange('Set Mask Mode', (draft) => {
+                          const mask = draft.compositions
+                            .find((c) => c.id === draft.activeCompId)
+                            ?.layers.find((x) => x.id === layer.id)
+                            ?.masks.find((x) => x.id === m.id);
+                          if (mask) mask.mode = e.target.value as MaskMode;
+                        })
+                      }
+                    >
+                      <option value="add">Add</option>
+                      <option value="subtract">Subtract</option>
+                      <option value="intersect">Intersect</option>
+                      <option value="difference">Difference</option>
+                    </select>
+                    <ScrubNumberInput
+                      min={0}
+                      max={200}
+                      suffix="px"
+                      value={m.feather}
+                      onChange={(fv) =>
+                        studio.commitProjectChange('Set Mask Feather', (draft) => {
+                          const mask = draft.compositions
+                            .find((c) => c.id === draft.activeCompId)
+                            ?.layers.find((x) => x.id === layer.id)
+                            ?.masks.find((x) => x.id === m.id);
+                          if (mask) mask.feather = fv;
+                        })
+                      }
+                    />
+                    <label style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                      <input
+                        type="checkbox"
+                        checked={m.inverted}
+                        onChange={(e) =>
+                          studio.commitProjectChange('Invert Mask', (draft) => {
+                            const mask = draft.compositions
+                              .find((c) => c.id === draft.activeCompId)
+                              ?.layers.find((x) => x.id === layer.id)
+                              ?.masks.find((x) => x.id === m.id);
+                            if (mask) mask.inverted = e.target.checked;
+                          })
+                        }
+                      />
+                      Inv
+                    </label>
+                    <button
+                      className="studio-btn ghost"
+                      style={{ minHeight: 20, padding: '0 5px', color: 'var(--status-err)' }}
+                      onClick={() =>
+                        studio.commitProjectChange('Delete Mask', (draft) => {
+                          const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                          if (l) l.masks = l.masks.filter((x) => x.id !== m.id);
+                        })
+                      }
+                    >
+                      ×
+                    </button>
                   </div>
                 ))}
               </div>
 
-              {/* Effect Controls Stack + Per-Effect Performance Profiler */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* Effect Controls Stack + Per-Effect Performance Profiler (BUG-P2-04 Fixed) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                    Effect Controls &amp; Profiler ({layer.effects.length})
-                  </span>
-                  <button className="studio-btn" style={{ padding: '1px 6px', fontSize: 10 }} onClick={() => studio.setLeftTab('effects')}>
+                  <span className="section-eyebrow">Effect Controls &amp; Profiler ({layer.effects.length})</span>
+                  <button className="studio-btn" style={{ minHeight: 22, padding: '1px 7px', fontSize: 10.5 }} onClick={() => studio.setLeftTab('effects')}>
                     + Browse 186
                   </button>
                 </div>
 
                 {layer.effects.map((fx) => {
-                  const timing = studio.lastFrameResult?.effectTimings.find((t) => t.effectInstanceId === fx.id);
+                  const timing = studio.lastFrameResult?.effectTimings.find((tm) => tm.effectInstanceId === fx.id);
+                  const def = EFFECTS_CATALOG.find((d) => d.id === fx.effectId);
                   return (
-                    <div
-                      key={fx.id}
-                      style={{
-                        padding: 8,
-                        borderRadius: 5,
-                        background: 'var(--bg-elevated)',
-                        border: '1px solid var(--border-subtle)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 6,
-                      }}
-                    >
+                    <div key={fx.id} className="inspector-card" style={{ gap: 6 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
                           <input
@@ -575,13 +799,13 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                         </label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           {timing && (
-                            <span className="badge ok mono" title="Per-Effect Render Cost (EXCEED-12)">
+                            <span className="badge ok mono">
                               {timing.durationMs.toFixed(2)}ms
                             </span>
                           )}
                           <button
                             className="studio-btn ghost"
-                            style={{ padding: '0 4px', color: 'var(--status-err)' }}
+                            style={{ minHeight: 20, padding: '0 5px', color: 'var(--status-err)' }}
                             title="Remove Effect"
                             onClick={() => {
                               studio.commitProjectChange(`Delete Effect ${fx.name}`, (draft) => {
@@ -597,41 +821,81 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
 
                       {Object.entries(fx.params).map(([paramKey, prop]) => {
                         const v = prop.value;
+                        const pMeta = def?.params.find((pm) => pm.key === paramKey);
+                        const minB = pMeta?.min ?? -200;
+                        const maxB = pMeta?.max ?? 300;
+                        const stepB = pMeta?.step ?? 0.5;
                         if (typeof v === 'number') {
                           return (
                             <div key={paramKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                              <span style={{ fontSize: 10.5, color: 'var(--text-secondary)', textTransform: 'capitalize', width: 92 }}>
-                                {paramKey}
+                              <span style={{ fontSize: 10.5, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                                {pMeta?.label ?? paramKey}
                               </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <input
+                                  type="range"
+                                  min={minB}
+                                  max={maxB}
+                                  step={stepB}
+                                  value={Math.max(minB, Math.min(maxB, v))}
+                                  style={{ width: 72 }}
+                                  onChange={(e) => {
+                                    const nv = Number(e.target.value);
+                                    studio.commitProjectChange(
+                                      `${fx.name}: ${paramKey}`,
+                                      (draft) => {
+                                        const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                                        const f = l?.effects.find((x) => x.id === fx.id);
+                                        if (f && f.params[paramKey]) f.params[paramKey].value = nv;
+                                      },
+                                      `fx_${fx.id}_${paramKey}`,
+                                    );
+                                  }}
+                                />
+                                <ScrubNumberInput
+                                  value={v}
+                                  step={stepB}
+                                  onChange={(nv) =>
+                                    studio.commitProjectChange(
+                                      `${fx.name}: ${paramKey}`,
+                                      (draft) => {
+                                        const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                                        const f = l?.effects.find((x) => x.id === fx.id);
+                                        if (f && f.params[paramKey]) f.params[paramKey].value = nv;
+                                      },
+                                      `fx_${fx.id}_${paramKey}`,
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                          );
+                        }
+                        if (typeof v === 'boolean') {
+                          return (
+                            <label key={paramKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--text-secondary)' }}>
+                              <span style={{ textTransform: 'capitalize' }}>{pMeta?.label ?? paramKey}</span>
                               <input
-                                type="range"
-                                min={-100}
-                                max={200}
-                                value={Math.round(v)}
-                                style={{ flex: 1 }}
+                                type="checkbox"
+                                checked={v}
                                 onChange={(e) => {
-                                  const nv = Number(e.target.value);
-                                  studio.commitProjectChange(
-                                    `${fx.name}: ${paramKey}`,
-                                    (draft) => {
-                                      const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
-                                      const f = l?.effects.find((x) => x.id === fx.id);
-                                      if (f && f.params[paramKey]) f.params[paramKey].value = nv;
-                                    },
-                                    `fx_${fx.id}_${paramKey}`,
-                                  );
+                                  const bv = e.target.checked;
+                                  studio.commitProjectChange(`${fx.name}: ${paramKey}`, (draft) => {
+                                    const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
+                                    const f = l?.effects.find((x) => x.id === fx.id);
+                                    if (f && f.params[paramKey]) f.params[paramKey].value = bv;
+                                  });
                                 }}
                               />
-                              <span className="mono" style={{ width: 34, textAlign: 'right', fontSize: 10.5 }}>
-                                {Math.round(v)}
-                              </span>
-                            </div>
+                            </label>
                           );
                         }
                         if (typeof v === 'string' && v.startsWith('#')) {
                           return (
                             <div key={paramKey} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 10.5, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{paramKey}</span>
+                              <span style={{ fontSize: 10.5, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                                {pMeta?.label ?? paramKey}
+                              </span>
                               <input
                                 type="color"
                                 value={v}
@@ -639,7 +903,7 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                                 onChange={(e) => {
                                   const col = e.target.value;
                                   studio.commitProjectChange(`${fx.name}: ${paramKey}`, (draft) => {
-                                    const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === fx.id ? false : x.id === layer.id);
+                                    const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
                                     const f = l?.effects.find((x) => x.id === fx.id);
                                     if (f && f.params[paramKey]) f.params[paramKey].value = col;
                                   });
@@ -659,122 +923,143 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
         </div>
       )}
 
-      {/* TAB 2: REAL-TIME LUMETRI VIDEO SCOPES (HISTOGRAM, LUMA WAVEFORM, VECTORSCOPE) */}
+      {/* TAB 2: REAL-TIME LUMETRI VIDEO SCOPES (Theme-adaptive via --bg-inset!) */}
       {studio.rightTab === 'scopes' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--accent-amber)' }}>
-            Real-Time RGB Histogram &amp; Luma Waveform
-          </div>
           {scopes && (
             <>
-              {/* RGB Histogram SVG */}
-              <svg
-                viewBox="0 0 256 90"
-                style={{ width: '100%', height: 95, background: '#090B10', borderRadius: 5, border: '1px solid var(--border-subtle)' }}
-              >
-                {(() => {
-                  const maxVal = Math.max(1, ...scopes.histogramR, ...scopes.histogramG, ...scopes.histogramB);
-                  const poly = (arr: Uint32Array) =>
-                    Array.from(arr)
-                      .map((v, i) => `${i},${88 - (v / maxVal) * 82}`)
-                      .join(' ');
-                  return (
-                    <>
-                      <polyline fill="none" stroke="#F87171" strokeWidth="1.2" points={poly(scopes.histogramR)} opacity={0.85} />
-                      <polyline fill="none" stroke="#34D399" strokeWidth="1.2" points={poly(scopes.histogramG)} opacity={0.85} />
-                      <polyline fill="none" stroke="#38BDF8" strokeWidth="1.2" points={poly(scopes.histogramB)} opacity={0.85} />
-                    </>
-                  );
-                })()}
-              </svg>
+              <div className="inspector-card">
+                <span className="section-eyebrow">RGB Parade Histogram (0–255)</span>
+                <svg
+                  viewBox="0 0 256 90"
+                  style={{ width: '100%', height: 90, background: 'var(--bg-inset)', borderRadius: 5, border: '1px solid var(--border-subtle)' }}
+                >
+                  {(() => {
+                    const maxVal = Math.max(1, ...scopes.histogramR, ...scopes.histogramG, ...scopes.histogramB);
+                    const poly = (arr: Uint32Array) =>
+                      Array.from(arr)
+                        .map((v, i) => `${i},${88 - (v / maxVal) * 82}`)
+                        .join(' ');
+                    return (
+                      <>
+                        <polyline fill="none" stroke="#F87171" strokeWidth="1.3" points={poly(scopes.histogramR)} opacity={0.9} />
+                        <polyline fill="none" stroke="#34D399" strokeWidth="1.3" points={poly(scopes.histogramG)} opacity={0.9} />
+                        <polyline fill="none" stroke="#38BDF8" strokeWidth="1.3" points={poly(scopes.histogramB)} opacity={0.9} />
+                      </>
+                    );
+                  })()}
+                </svg>
+              </div>
 
-              {/* Luma IRE Waveform */}
-              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>IRE Luma &amp; RGB Parade Waveform (0 – 100 IRE)</div>
-              <svg
-                viewBox="0 0 64 64"
-                preserveAspectRatio="none"
-                style={{ width: '100%', height: 105, background: '#090B10', borderRadius: 5, border: '1px solid var(--border-subtle)' }}
-              >
-                <polyline
-                  fill="none"
-                  stroke="#38BDF8"
-                  strokeWidth="1.2"
-                  points={Array.from(scopes.waveformLuma)
-                    .map((v, idx) => `${idx},${62 - v * 58}`)
-                    .join(' ')}
-                />
-              </svg>
-
-              {/* Broadcast Vectorscope with Skin-Tone I-Line */}
-              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Chroma Vectorscope (Cb / Cr + Skin-Tone Line)</div>
-              <svg
-                viewBox="0 0 64 64"
-                style={{ width: 170, height: 170, alignSelf: 'center', background: '#090B10', borderRadius: '50%', border: '1px solid var(--border-strong)' }}
-              >
-                <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="0.4" />
-                <line x1="32" y1="32" x2="18" y2="10" stroke="rgba(232,155,60,0.55)" strokeWidth="0.5" />
-                {scopes.vectorscopePoints.map(([cb, cr, hex], idx) => (
-                  <circle
-                    key={idx}
-                    cx={32 + cb * 26}
-                    cy={32 - cr * 26}
-                    r={0.85}
-                    fill={hex}
-                    opacity={0.75}
+              <div className="inspector-card">
+                <span className="section-eyebrow">IRE Luma Waveform (0–100 IRE)</span>
+                <svg
+                  viewBox="0 0 64 64"
+                  preserveAspectRatio="none"
+                  style={{ width: '100%', height: 96, background: 'var(--bg-inset)', borderRadius: 5, border: '1px solid var(--border-subtle)' }}
+                >
+                  <polyline
+                    fill="none"
+                    stroke="var(--accent-cyan)"
+                    strokeWidth="1.3"
+                    points={Array.from(scopes.waveformLuma)
+                      .map((v, idx) => `${idx},${62 - v * 58}`)
+                      .join(' ')}
                   />
-                ))}
-              </svg>
+                </svg>
+              </div>
+
+              <div className="inspector-card" style={{ alignItems: 'center' }}>
+                <span className="section-eyebrow" style={{ alignSelf: 'flex-start' }}>
+                  Chroma Vectorscope (Skin-Tone I-Line)
+                </span>
+                <svg
+                  viewBox="0 0 64 64"
+                  style={{ width: 168, height: 168, background: 'var(--bg-inset)', borderRadius: '50%', border: '1px solid var(--border-strong)' }}
+                >
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="var(--grid-line)" strokeWidth="0.5" />
+                  <line x1="32" y1="32" x2="18" y2="10" stroke="var(--accent-amber)" strokeWidth="0.6" opacity={0.75} />
+                  {scopes.vectorscopePoints.map(([cb, cr, hex], idx) => (
+                    <circle key={idx} cx={32 + cb * 26} cy={32 - cr * 26} r={0.85} fill={hex} opacity={0.8} />
+                  ))}
+                </svg>
+              </div>
             </>
           )}
         </div>
       )}
 
-      {/* TAB 3: MOTION TRACKER, WARP STABILIZER, CONTENT-AWARE FILL & LOCAL AI ROTO */}
+      {/* TAB 3: MOTION TRACKING, WARP STABILIZER, LOCAL AI ROTO & CONTENT-AWARE FILL */}
       {studio.rightTab === 'tracker' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ padding: 9, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontWeight: 700, color: 'var(--accent-amber)' }}>1/2/4-Point NCC Motion Tracker</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              Tracks sub-pixel feature patches across frames and exports solved keyframes to a Null rig.
-            </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="inspector-card">
+            <span className="section-eyebrow">2D Feature Motion Tracker (NCC)</span>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              Sub-pixel Normalized Cross-Correlation feature tracker solved locally to a Null rig layer.
+            </p>
             <button className="studio-btn primary" onClick={runMotionTrackerOnComp}>
-              ▶ Analyze Forward &amp; Apply to Null
+              Track Motion &amp; Bake Null Rig
             </button>
           </div>
 
-          <div style={{ padding: 9, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>Warp Stabilizer &amp; 3D Camera Solver</div>
-            <div style={{ display: 'flex', gap: 5 }}>
-              <button className="studio-btn" style={{ flex: 1 }} onClick={() => studio.applyEffectToSelectedLayer('warp-stabilizer')}>
-                Stabilize Shot
-              </button>
-              <button className="studio-btn" style={{ flex: 1 }} onClick={() => studio.addLayerOfType('camera')}>
-                Solve 3D Camera
-              </button>
-            </div>
+          <div className="inspector-card">
+            <span className="section-eyebrow">Warp Stabilizer VFX</span>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              Applies inverse camera-shake smoothing to the selected layer.
+            </p>
+            <button
+              className="studio-btn"
+              onClick={() => studio.applyEffectToSelectedLayer('fx-warp-stabilizer')}
+            >
+              Stabilize Selected Layer
+            </button>
           </div>
 
-          <div style={{ padding: 9, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontWeight: 700, color: 'var(--status-ok)' }}>Local AI Roto Brush &amp; Content-Aware Fill</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              100% offline subject segmentation &amp; spatial boundary clean-plate object removal.
-            </div>
-            <div style={{ display: 'flex', gap: 5 }}>
+          <div className="inspector-card">
+            <span className="section-eyebrow">Local AI Roto &amp; Content-Aware Fill</span>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              100% local foreground matting and Poisson boundary clean-plate generation — zero cloud uploads.
+            </p>
+            <div style={{ display: 'flex', gap: 6 }}>
               <button className="studio-btn" style={{ flex: 1 }} onClick={() => studio.setActiveTool('roto-brush')}>
-                Activate AI Roto
+                AI Roto Tool
               </button>
               <button
-                className="studio-btn"
+                className="studio-btn primary"
                 style={{ flex: 1 }}
                 onClick={() => {
-                  if (!studio.lastFrameResult) return;
-                  synthesizeContentAwareFill(studio.lastFrameResult.pixels, studio.lastFrameResult.width, studio.lastFrameResult.height, {
-                    x: studio.lastFrameResult.width * 0.4,
-                    y: studio.lastFrameResult.height * 0.4,
-                    width: 40,
-                    height: 30,
+                  if (!studio.lastFrameResult || !comp) return;
+                  const r = studio.lastFrameResult;
+                  const cleanPlate = synthesizeContentAwareFill(r.pixels, r.width, r.height, {
+                    x: Math.round(r.width * 0.35),
+                    y: Math.round(r.height * 0.35),
+                    width: Math.max(8, Math.round(r.width * 0.3)),
+                    height: Math.max(8, Math.round(r.height * 0.3)),
                   });
-                  studio.notify('Generated Content-Aware Fill clean plate');
+                  // BUG-P1-03 Fix: Persist synthesized cleanPlate as ProjectAsset + Footage Layer!
+                  const assetId = createId('ast');
+                  const layerId = createId('lyr');
+                  studio.commitProjectChange('Generate Content-Aware Fill Clean Plate', (draft) => {
+                    draft.assets.push({
+                      id: assetId,
+                      name: `CleanPlate_${comp.name}.png`,
+                      folder: '04_CleanPlates',
+                      kind: 'image',
+                      path: `CleanPlate_${comp.name}.png`,
+                      width: r.width,
+                      height: r.height,
+                      rgbaBuffer: cleanPlate,
+                    });
+                    const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+                    if (c) {
+                      const lyr = buildDefaultLayerForComp('footage', c, layerId);
+                      lyr.name = `Clean Plate (${comp.name})`;
+                      lyr.assetId = assetId;
+                      c.layers.unshift(lyr);
+                    }
+                  });
+                  studio.setSelectedLayerIds([layerId]);
+                  studio.notify(`Generated Clean Plate layer (${r.width}×${r.height}) locally`);
                 }}
               >
                 Generate Fill Plate
@@ -784,23 +1069,22 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
         </div>
       )}
 
-      {/* TAB 4: MULTI-LANGUAGE SCRIPTING (JS / PYTHON / LUA), PLUGIN SDK & GIT VERSIONING */}
+      {/* TAB 4: AUDIO VU, MULTI-LANGUAGE SCRIPTING, PLUGIN SDK & GIT VERSIONING */}
       {studio.rightTab === 'scripting' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Audio Mixer VU Meter + Audio-to-Keyframes */}
-          <div style={{ padding: 8, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div className="inspector-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 700, fontSize: 11 }}>Audio Stereo Bus VU</span>
+              <span className="section-eyebrow">Audio Stereo Bus VU</span>
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--status-ok)' }}>
-                RMS {audioVu.rmsDb.toFixed(1)} dB / Peak {audioVu.peakDb.toFixed(1)} dB
+                RMS {audioVu.rmsDb.toFixed(1)} dB · Peak {audioVu.peakDb.toFixed(1)} dB
               </span>
             </div>
-            <div style={{ height: 7, background: '#090B10', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: 7, background: 'var(--bg-inset)', border: '1px solid var(--border-subtle)', borderRadius: 4, overflow: 'hidden' }}>
               <div
                 style={{
                   width: `${Math.max(5, Math.min(100, ((audioVu.peakDb + 60) / 66) * 100))}%`,
                   height: '100%',
-                  background: 'linear-gradient(90deg, #34D399, #FBBF24, #F87171)',
+                  background: 'linear-gradient(90deg, var(--status-ok), var(--accent-amber), var(--status-err))',
                 }}
               />
             </div>
@@ -817,7 +1101,7 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                     id: createId('lyr'),
                     name: 'Audio Amplitude [Keyframes]',
                     type: 'null',
-                    labelColor: '#4BB543',
+                    labelColor: '#3DD68C',
                     visible: true,
                     audioEnabled: false,
                     solo: false,
@@ -851,22 +1135,21 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
             </button>
           </div>
 
-          {/* Multi-Language Automation Console */}
-          <div style={{ padding: 8, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="inspector-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 700, fontSize: 11, color: 'var(--accent-amber)' }}>Studio Scripting (EXCEED-04)</span>
+              <span className="section-eyebrow">Automation Console</span>
               <select
                 className="studio-select"
                 value={scriptLang}
                 onChange={(e) => {
-                  const l = e.target.value as ScriptLanguage;
-                  setScriptLang(l);
-                  setScriptCode(SAMPLE_AUTOMATION_SCRIPTS[l]);
+                  const lang = e.target.value as ScriptLanguage;
+                  setScriptLang(lang);
+                  setScriptCode(SAMPLE_AUTOMATION_SCRIPTS[lang]);
                 }}
               >
                 <option value="javascript">JavaScript (ES2023)</option>
-                <option value="python">Python Automation</option>
-                <option value="lua">Lua Automation</option>
+                <option value="python">Python Dialect</option>
+                <option value="lua">Lua Dialect</option>
               </select>
             </div>
             <textarea
@@ -893,18 +1176,22 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
               ▶ Execute {scriptLang.toUpperCase()} Script
             </button>
             {scriptLogs.length > 0 && (
-              <div className="mono" style={{ padding: 6, background: '#090B10', borderRadius: 4, fontSize: 10, color: 'var(--accent-cyan)' }}>
-                {scriptLogs.map((l, i) => <div key={i}>&gt; {l}</div>)}
+              <div className="mono" style={{ padding: 6, background: 'var(--bg-inset)', border: '1px solid var(--border-subtle)', borderRadius: 4, fontSize: 10, color: 'var(--accent-cyan)' }}>
+                {scriptLogs.map((l, i) => (
+                  <div key={i}>&gt; {l}</div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Sandboxed Plugin SDK v1.0 */}
-          <div style={{ padding: 8, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontWeight: 700, fontSize: 11 }}>Sandboxed Plugin SDK v1.0 ({studioPluginRegistry.list().length})</span>
+          {/* BUG-P2-05 Fix: pluginRev triggers live re-render when installing bundles */}
+          <div className="inspector-card" data-plugin-rev={pluginRev}>
+            <span className="section-eyebrow">Sandboxed Plugin SDK v1.0 ({studioPluginRegistry.list().length})</span>
             {studioPluginRegistry.list().map((plg) => (
               <div key={plg.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5 }}>
-                <span>{plg.name} <span className="mono" style={{ color: 'var(--text-muted)' }}>v{plg.version}</span></span>
+                <span>
+                  {plg.name} <span className="mono" style={{ color: 'var(--text-muted)' }}>v{plg.version}</span>
+                </span>
                 <span className="badge ok">Sandboxed</span>
               </div>
             ))}
@@ -919,6 +1206,7 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
               className="studio-btn"
               onClick={() => {
                 const r = studioPluginRegistry.installSandboxedBundle(customPluginCode);
+                setPluginRev((v) => v + 1);
                 studio.notify(r.ok ? `Installed plugin "${r.plugin?.name}"` : `Plugin error: ${r.error}`);
               }}
             >
@@ -926,12 +1214,9 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
             </button>
           </div>
 
-          {/* Git-Style Project Version Commits (EXCEED-05) */}
-          <div style={{ padding: 8, borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontWeight: 700, fontSize: 11, color: 'var(--accent-purple)' }}>
-              Git Project Commits ({studio.project.versionCommits.length})
-            </span>
-            <div style={{ display: 'flex', gap: 4 }}>
+          <div className="inspector-card">
+            <span className="section-eyebrow">Git Project Commits ({studio.project.versionCommits.length})</span>
+            <div style={{ display: 'flex', gap: 5 }}>
               <input
                 className="studio-input"
                 style={{ flex: 1 }}

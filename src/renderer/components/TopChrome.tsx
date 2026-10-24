@@ -1,70 +1,103 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { ToolId, WorkspaceId } from '../../engine/types';
 import { t } from '../../utils/i18n';
+import { formatTimecode } from '../../utils/math';
 import {
   IconAnchor,
+  IconBookGuide,
   IconBrush,
   IconCamera,
+  IconChevronDown,
   IconClone,
   IconCursor,
+  IconDownload,
+  IconEraser,
   IconHand,
   IconMoon,
+  IconPause,
   IconPen,
   IconPin,
+  IconPlay,
+  IconPlus,
   IconRotate,
   IconRoto,
+  IconSearch,
   IconShapeRect,
+  IconSkipStart,
+  IconStepBack,
+  IconStepFwd,
   IconSun,
   IconText,
   IconZoom,
 } from './Icons';
 
-const TOOLS: Array<{ id: ToolId; label: string; keyHint: string; icon: React.ReactNode }> = [
-  { id: 'selection', label: 'Selection Tool', keyHint: 'V', icon: <IconCursor /> },
-  { id: 'hand', label: 'Hand Pan Tool', keyHint: 'H', icon: <IconHand /> },
-  { id: 'zoom', label: 'Zoom Tool', keyHint: 'Z', icon: <IconZoom /> },
-  { id: 'rotate', label: 'Rotation Tool', keyHint: 'W', icon: <IconRotate /> },
-  { id: 'camera', label: '3D Camera Orbit Tool', keyHint: 'C', icon: <IconCamera /> },
-  { id: 'anchor', label: 'Pan Behind (Anchor Point)', keyHint: 'Y', icon: <IconAnchor /> },
-  { id: 'shape-rect', label: 'Vector Shape Tool', keyHint: 'Q', icon: <IconShapeRect /> },
-  { id: 'pen', label: 'Bezier Pen / Mask Vertex Tool', keyHint: 'G', icon: <IconPen /> },
-  { id: 'text', label: 'Horizontal / Box Type Tool', keyHint: 'T', icon: <IconText /> },
-  { id: 'brush', label: 'Paint Brush Tool', keyHint: 'Ctrl+B', icon: <IconBrush /> },
-  { id: 'clone', label: 'Clone Stamp Tool', keyHint: 'Alt+B', icon: <IconClone /> },
-  { id: 'roto-brush', label: 'Local AI Roto Brush', keyHint: 'Alt+W', icon: <IconRoto /> },
-  { id: 'puppet-pin', label: 'Puppet Deform Pin Tool', keyHint: 'Ctrl+P', icon: <IconPin /> },
+interface ToolSpec {
+  id: ToolId;
+  label: string;
+  keyHint: string;
+  group: 'nav' | 'vector' | 'vfx';
+  icon: React.ReactNode;
+}
+
+const TOOLS: ToolSpec[] = [
+  { id: 'selection', label: 'Selection Tool', keyHint: 'V', group: 'nav', icon: <IconCursor /> },
+  { id: 'hand', label: 'Hand Pan Tool', keyHint: 'H', group: 'nav', icon: <IconHand /> },
+  { id: 'zoom', label: 'Zoom Stage Tool (Alt = Out)', keyHint: 'Z', group: 'nav', icon: <IconZoom /> },
+  { id: 'rotate', label: 'Rotation Tool', keyHint: 'W', group: 'nav', icon: <IconRotate /> },
+  { id: 'camera', label: '3D Camera Orbit Tool', keyHint: 'C', group: 'nav', icon: <IconCamera /> },
+  { id: 'anchor', label: 'Pan Behind (Anchor Point)', keyHint: 'Y', group: 'nav', icon: <IconAnchor /> },
+  { id: 'shape-rect', label: 'Vector Shape Tool', keyHint: 'Q', group: 'vector', icon: <IconShapeRect /> },
+  { id: 'pen', label: 'Bezier Pen / Mask Tool', keyHint: 'G', group: 'vector', icon: <IconPen /> },
+  { id: 'text', label: 'Typography Tool', keyHint: 'T', group: 'vector', icon: <IconText /> },
+  { id: 'brush', label: 'Paint Brush Tool', keyHint: 'Ctrl+B', group: 'vfx', icon: <IconBrush /> },
+  { id: 'clone', label: 'Clone Stamp Tool', keyHint: 'Alt+B', group: 'vfx', icon: <IconClone /> },
+  { id: 'eraser', label: 'Non-Destructive Eraser Tool', keyHint: 'Alt+E', group: 'vfx', icon: <IconEraser /> },
+  { id: 'roto-brush', label: 'Local AI Roto Brush', keyHint: 'Alt+W', group: 'vfx', icon: <IconRoto /> },
+  { id: 'puppet-pin', label: 'Puppet Deform Pin Tool', keyHint: 'Ctrl+P', group: 'vfx', icon: <IconPin /> },
 ];
 
 const WORKSPACES: Array<{ id: WorkspaceId; label: string }> = [
   { id: 'standard', label: 'Standard' },
-  { id: 'animation', label: 'Animation' },
-  { id: 'effects', label: 'Node & Effects' },
-  { id: 'color', label: 'Color & Scopes' },
-  { id: '3d', label: '3D Stage' },
-  { id: 'tracking', label: 'Track & Roto' },
-  { id: 'paint', label: 'Paint' },
-  { id: 'text', label: 'Typography' },
+  { id: 'animation', label: 'Curves' },
+  { id: 'effects', label: 'Nodes' },
+  { id: 'color', label: 'Color' },
+  { id: 'tracking', label: 'Track' },
+  { id: 'minimal', label: 'Minimal' },
 ];
+
+const THEME_CYCLE: Array<'dark' | 'light' | 'high-contrast' | 'graphite'> = [
+  'dark',
+  'light',
+  'high-contrast',
+  'graphite',
+];
+
+const THEME_LABELS: Record<string, string> = {
+  dark: 'Obsidian',
+  light: 'Daylight',
+  'high-contrast': 'OLED AAA+',
+  graphite: 'Graphite',
+  custom: 'Custom',
+};
 
 export const TopChrome: React.FC = () => {
   const studio = useStudio();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [addLayerOpen, setAddLayerOpen] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
   const loc = studio.preferences.locale;
 
-  const triggerOpenFile = () => {
-    setOpenMenu(null);
-    fileInputRef.current?.click();
-  };
-
-  const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    studio.importLocalFileContent(file.name, text);
-    e.target.value = '';
-  };
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+        setAddLayerOpen(false);
+      }
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, []);
 
   const menus: Array<{ id: string; label: string; items: Array<{ label: string; shortcut?: string; action: () => void }> }> = [
     {
@@ -72,8 +105,8 @@ export const TopChrome: React.FC = () => {
       label: t('menu.file', loc),
       items: [
         { label: 'Welcome & Studio Templates…', action: () => studio.setActiveModal('welcome') },
-        { label: 'New Blank Project', shortcut: 'Ctrl+Alt+N', action: () => studio.loadTemplateProject('blank') },
-        { label: 'Open Project / Import Asset…', shortcut: 'Ctrl+O', action: triggerOpenFile },
+        { label: 'New Blank Project', action: () => studio.loadTemplateProject('blank') },
+        { label: 'Import Media / 3D / CSV / LUT…', shortcut: 'Ctrl+I', action: () => studio.triggerImportDialog() },
         { label: 'Save Project (.prex)…', shortcut: 'Ctrl+S', action: () => void studio.saveProjectFileLocal() },
         { label: 'Collect Files Package Report…', action: () => studio.exportCollectFilesManifest() },
         { label: 'Commit Git Project Snapshot…', action: () => studio.commitGitSnapshot('Manual Menu Milestone') },
@@ -84,305 +117,472 @@ export const TopChrome: React.FC = () => {
       id: 'edit',
       label: t('menu.edit', loc),
       items: [
-        { label: `Undo (${studio.undoEntries.length})`, shortcut: 'Ctrl+Z', action: () => studio.undo() },
+        { label: `Undo (${studio.undoCount})`, shortcut: 'Ctrl+Z', action: () => studio.undo() },
         { label: `Redo (${studio.redoCount})`, shortcut: 'Ctrl+Shift+Z', action: () => studio.redo() },
         { label: 'Undo History & Version Drawer…', action: () => studio.setActiveModal('history') },
         { label: 'Duplicate Layer', shortcut: 'Ctrl+D', action: () => studio.duplicateSelectedLayers(false) },
-        { label: 'Smart Duplicate Hierarchy', shortcut: 'Ctrl+Alt+D', action: () => studio.duplicateSelectedLayers(true) },
+        { label: 'Smart Duplicate (Relink Expressions)', shortcut: 'Ctrl+Alt+D', action: () => studio.duplicateSelectedLayers(true) },
         { label: 'Split Layer at Playhead', shortcut: 'Ctrl+Shift+D', action: () => studio.splitSelectedLayersAtPlayhead() },
-        { label: 'Purge All RAM Preview Cache', action: () => studio.purgeRamCache() },
-        { label: 'Preferences & Shortcuts…', action: () => studio.setActiveModal('preferences') },
+        { label: 'Delete Selected Layer(s)', shortcut: 'Backspace', action: () => studio.deleteSelectedLayers() },
+        { label: 'Keyboard Shortcuts…', action: () => studio.setActiveModal('shortcuts') },
+        { label: 'Purge RAM Frame Cache', action: () => studio.purgeRamCache() },
+        { label: 'Preferences & Theme Contrast…', action: () => studio.setActiveModal('preferences') },
       ],
     },
     {
       id: 'comp',
-      label: t('menu.composition', loc),
+      label: t('menu.comp', loc),
       items: [
         { label: 'New Composition…', shortcut: 'Ctrl+N', action: () => studio.setActiveModal('new-comp') },
-        { label: 'Composition Settings…', shortcut: 'Ctrl+K*', action: () => studio.setActiveModal('comp-settings') },
+        { label: 'Composition Settings…', action: () => studio.setActiveModal('comp-settings') },
         { label: 'Pre-compose Selected Layers', shortcut: 'Ctrl+Shift+C', action: () => studio.precomposeSelectedLayers() },
-        { label: 'Take Viewport Snapshot', action: () => studio.takeSnapshot() },
+        { label: 'Capture Viewer Snapshot', shortcut: 'F5', action: () => studio.takeSnapshot() },
+        { label: 'Queue Active Composition Render', shortcut: 'Ctrl+M', action: () => studio.addCurrentCompToRenderQueue() },
       ],
     },
     {
       id: 'layer',
       label: t('menu.layer', loc),
       items: [
-        { label: 'New Text Layer', action: () => studio.addLayerOfType('text') },
-        { label: 'New Solid Layer', action: () => studio.addLayerOfType('solid') },
-        { label: 'New Vector Shape Layer', action: () => studio.addLayerOfType('shape') },
-        { label: 'New Null Object', action: () => studio.addLayerOfType('null') },
-        { label: 'New Adjustment Layer', action: () => studio.addLayerOfType('adjustment') },
-        { label: 'New 3D Camera', action: () => studio.addLayerOfType('camera') },
-        { label: 'New 3D Light', action: () => studio.addLayerOfType('light') },
+        { label: 'New Typography Layer', shortcut: 'T', action: () => studio.addLayerOfType('text') },
+        { label: 'New Vector Shape Layer', shortcut: 'Q', action: () => studio.addLayerOfType('shape') },
+        { label: 'New Solid Layer', shortcut: 'Ctrl+Y', action: () => studio.addLayerOfType('solid') },
+        { label: 'New Null Rig Controller', action: () => studio.addLayerOfType('null') },
+        { label: 'New Adjustment Layer', shortcut: 'Ctrl+Alt+Y', action: () => studio.addLayerOfType('adjustment') },
+        { label: 'New 3D Camera (35mm DoF)', action: () => studio.addLayerOfType('camera') },
+        { label: 'New 3D Point Light', action: () => studio.addLayerOfType('light') },
         { label: 'New Guide Layer', action: () => studio.addLayerOfType('guide') },
-        { label: 'Delete Selected Layer(s)', shortcut: 'Del', action: () => studio.deleteSelectedLayers() },
       ],
     },
     {
       id: 'effect',
       label: t('menu.effect', loc),
       items: [
-        { label: 'Gaussian Blur', action: () => studio.applyEffectToSelectedLayer('gaussian-blur') },
-        { label: 'Optical Glow', action: () => studio.applyEffectToSelectedLayer('glow') },
-        { label: 'Curves (RGB + Alpha)', action: () => studio.applyEffectToSelectedLayer('curves') },
-        { label: 'Lumetri Color Grade', action: () => studio.applyEffectToSelectedLayer('lumetri-color') },
-        { label: 'Keylight 1.2 Chroma Keyer', action: () => studio.applyEffectToSelectedLayer('keylight') },
-        { label: 'AI Roto Matting (Local)', action: () => studio.applyEffectToSelectedLayer('ai-roto-matting') },
-        { label: 'Procedural Reaction-Diffusion', action: () => studio.applyEffectToSelectedLayer('procedural-reaction-diffusion') },
-        { label: 'Browse All 186 Effects…', action: () => studio.setLeftTab('effects') },
-      ],
-    },
-    {
-      id: 'anim',
-      label: t('menu.animation', loc),
-      items: [
-        { label: 'Easy Ease Selected Keyframes', shortcut: 'F9', action: () => studio.applyKeyframeAssistant('easy-ease') },
-        { label: 'Easy Ease In', action: () => studio.applyKeyframeAssistant('easy-ease-in') },
-        { label: 'Easy Ease Out', action: () => studio.applyKeyframeAssistant('easy-ease-out') },
-        { label: 'Time-Reverse Keyframes', action: () => studio.applyKeyframeAssistant('reverse') },
-        { label: 'Sequence Selected Layers', action: () => studio.applyKeyframeAssistant('sequence') },
-        { label: 'Open Speed / Value Graph Editor', action: () => studio.setBottomMode('graph') },
+        { label: 'Search All 186 Effects…', shortcut: 'Ctrl+K', action: () => studio.setActiveModal('command-palette') },
+        { label: 'Gaussian Blur', action: () => studio.applyEffectToSelectedLayer('fx-gaussian-blur') },
+        { label: 'Lumetri Color Suite', action: () => studio.applyEffectToSelectedLayer('fx-lumetri') },
+        { label: 'Optical Glow', action: () => studio.applyEffectToSelectedLayer('fx-glow') },
+        { label: 'Keylight 1.2 Chroma Keyer', action: () => studio.applyEffectToSelectedLayer('fx-keylight') },
+        { label: 'Fractal Noise', action: () => studio.applyEffectToSelectedLayer('fx-fractal-noise') },
       ],
     },
     {
       id: 'view',
       label: t('menu.view', loc),
       items: [
-        { label: 'Toggle Title/Action Safe Zones', action: () => studio.setShowSafeZones(!studio.showSafeZones) },
+        { label: 'Toggle Timeline ⇄ Node Graph (DAG)', shortcut: 'Shift+N', action: () => studio.setBottomMode(studio.bottomMode === 'nodes' ? 'timeline' : 'nodes') },
+        { label: 'Open Speed / Value Graph Editor', shortcut: 'U', action: () => studio.setBottomMode('graph') },
+        { label: 'Toggle Minimal Focus Workspace', shortcut: '`', action: () => studio.setActiveWorkspace(studio.activeWorkspace === 'minimal' ? 'standard' : 'minimal') },
+        { label: 'Reset Viewport Pan & Zoom', action: () => { studio.setViewportPan([0, 0]); studio.setZoomPct(100); } },
+        { label: 'Toggle Safe Zone Guides', action: () => studio.setShowSafeZones(!studio.showSafeZones) },
         { label: 'Toggle Proportional Grid', action: () => studio.setShowGrid(!studio.showGrid) },
         { label: 'Toggle Alpha Checkerboard', action: () => studio.setCheckerboard(!studio.checkerboard) },
-        { label: 'Switch to Node Compositing Graph', shortcut: 'Shift+N', action: () => studio.setBottomMode('nodes') },
-        { label: 'Switch to Timeline Layer Stack', action: () => studio.setBottomMode('timeline') },
       ],
     },
     {
       id: 'help',
-      label: 'Help',
+      label: t('menu.help', loc),
       items: [
-        { label: 'Start Interactive 5-Step Guided Tour…', action: () => studio.setTourStep(0) },
-        { label: "Toggle What's This? Help Mode", shortcut: 'Shift+F1', action: () => studio.setWhatsThisMode(!studio.whatsThisMode) },
-        { label: 'Keyboard Shortcuts & Theme Editor…', action: () => studio.setActiveModal('preferences') },
+        { label: 'Interactive Studio Guide & Handbook…', shortcut: 'F1', action: () => studio.setActiveModal('guide') },
+        { label: 'Start 8-Step Spotlight Walkthrough', action: () => studio.startInteractiveTour() },
+        { label: "What's This? Click-to-Inspect Mode", shortcut: 'Shift+F1', action: () => studio.setWhatsThisMode(!studio.whatsThisMode) },
+        { label: 'Keyboard Shortcuts Reference…', action: () => studio.setActiveModal('shortcuts') },
       ],
     },
   ];
 
-  return (
-    <header style={{ flexShrink: 0, borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-panel)' }}>
-      <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={onFileSelected} />
+  const cycleTheme = () => {
+    const idx = THEME_CYCLE.indexOf(studio.preferences.theme as (typeof THEME_CYCLE)[number]);
+    const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+    studio.updatePreferences({ theme: next });
+  };
 
-      {/* Row 1: Brand + Native Menu Bar + Workspace Switcher + Command Palette */}
+  const renderToolCluster = (group: ToolSpec['group']) =>
+    TOOLS.filter((tl) => tl.group === group).map((tool) => {
+      const isActive = studio.activeTool === tool.id;
+      return (
+        <button
+          key={tool.id}
+          title={`${tool.label} (${tool.keyHint})`}
+          aria-label={tool.label}
+          className={`studio-btn ${isActive ? 'active' : 'ghost'}`}
+          style={{ width: 28, height: 28, minHeight: 28, padding: 0 }}
+          onClick={() => studio.setActiveTool(tool.id)}
+        >
+          {tool.icon}
+        </button>
+      );
+    });
+
+  const fps = studio.activeComp?.fps ?? 60;
+  const currentFrame = Math.round(studio.currentTime * fps);
+  const renderMs = studio.lastFrameResult?.totalTimeMs ?? 0;
+
+  return (
+    <header
+      ref={headerRef}
+      style={{
+        flexShrink: 0,
+        background: 'var(--bg-panel)',
+        borderBottom: '1px solid var(--border-subtle)',
+      }}
+    >
+      {/* Tier 1: Calm Minimalist Studio Bar */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: 30,
+          height: 34,
           padding: '0 10px',
           borderBottom: '1px solid var(--border-subtle)',
-          background: 'var(--bg-elevated)',
+          gap: 10,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
-          <button
-            className="studio-btn ghost"
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              fontWeight: 700,
+              letterSpacing: '-0.02em',
+              color: 'var(--text-primary)',
+              marginRight: 4,
+              cursor: 'pointer',
+            }}
             onClick={() => studio.setActiveModal('welcome')}
-            title="PreEffects Studio Home & Templates"
-            style={{ padding: '2px 7px', fontWeight: 700, color: 'var(--text-primary)', gap: 6 }}
+            title="PreEffects Studio — Click for Starter Templates"
           >
-            <svg width="19" height="19" viewBox="0 0 64 64" aria-hidden="true">
-              <rect x="3" y="3" width="58" height="58" rx="14" fill="#131722" stroke="#384157" strokeWidth="2.5" />
-              <circle cx="32" cy="32" r="19" fill="none" stroke="#38BDF8" strokeWidth="2" strokeDasharray="6 3" opacity="0.8" />
-              <polygon points="32,11 53,32 32,53 11,32" fill="none" stroke="#E89B3C" strokeWidth="3.2" strokeLinejoin="round" />
-              <polygon points="27,23 41,32 27,41" fill="#E89B3C" />
-            </svg>
-            <span>PreEffects</span>
-          </button>
+            <span
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 5,
+                background: 'var(--accent-amber)',
+                color: 'var(--accent-on-primary)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 10,
+                fontWeight: 800,
+              }}
+            >
+              PE
+            </span>
+            <span style={{ fontSize: 12.5 }}>PreEffects</span>
+          </div>
 
-          {menus.map((m) => (
-            <div key={m.id} style={{ position: 'relative' }}>
-              <button
-                className={`studio-btn ghost ${openMenu === m.id ? 'active' : ''}`}
-                style={{ padding: '3px 7px', fontSize: 11.5 }}
-                onClick={() => setOpenMenu(openMenu === m.id ? null : m.id)}
-              >
-                {m.label}
-              </button>
-              {openMenu === m.id && (
-                <div
-                  onMouseLeave={() => setOpenMenu(null)}
-                  style={{
-                    position: 'absolute',
-                    top: 26,
-                    left: 0,
-                    minWidth: 235,
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-strong)',
-                    borderRadius: 6,
-                    boxShadow: 'var(--shadow-modal)',
-                    padding: 4,
-                    zIndex: 500,
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {menus.map((m) => (
+              <div key={m.id} style={{ position: 'relative' }}>
+                <button
+                  className={`studio-btn ghost ${openMenu === m.id ? 'subtle-active' : ''}`}
+                  style={{ minHeight: 24, padding: '2px 7px', fontSize: 11.5 }}
+                  onClick={() => {
+                    setAddLayerOpen(false);
+                    setOpenMenu(openMenu === m.id ? null : m.id);
                   }}
                 >
-                  {m.items.map((item, idx) => (
-                    <button
-                      key={idx}
-                      className="studio-btn ghost"
-                      style={{
-                        width: '100%',
-                        justifyContent: 'space-between',
-                        padding: '5px 9px',
-                        fontSize: 11.5,
-                      }}
-                      onClick={() => {
-                        setOpenMenu(null);
-                        item.action();
-                      }}
-                    >
-                      <span>{item.label}</span>
-                      {item.shortcut && <span className="mono" style={{ color: 'var(--text-muted)', fontSize: 10 }}>{item.shortcut}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+                  {m.label}
+                </button>
+                {openMenu === m.id && (
+                  <div className="popover-menu">
+                    {m.items.map((item) => (
+                      <button
+                        key={item.label}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 16,
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '6px 9px',
+                          borderRadius: 5,
+                          color: 'var(--text-primary)',
+                          fontSize: 11.5,
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                        onClick={() => {
+                          setOpenMenu(null);
+                          item.action();
+                        }}
+                      >
+                        <span>{item.label}</span>
+                        {item.shortcut && <span className="kbd-chip">{item.shortcut}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </nav>
 
-        {/* Workspace Switcher Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          {WORKSPACES.map((ws) => (
-            <button
-              key={ws.id}
-              className={`studio-btn ${studio.activeWorkspace === ws.id ? 'primary' : 'ghost'}`}
-              style={{ padding: '2px 8px', fontSize: 11 }}
-              onClick={() => studio.setActiveWorkspace(ws.id)}
-            >
-              {ws.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Command Palette + Offline Shield + Theme Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button
-            className="studio-btn"
-            onClick={() => studio.setActiveModal('command-palette')}
-            style={{ padding: '2px 9px', fontSize: 11, color: 'var(--text-secondary)' }}
-            title="Search all 186 effects, commands & shortcuts (Ctrl/Cmd+K)"
-          >
-            <span>Command Palette…</span>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--accent-amber)' }}>Ctrl+K</span>
-          </button>
-
-          <span className="badge ok" title="Zero telemetry, zero cloud, zero sign-in — 100% local offline execution">
-            LOCAL OFFLINE
-          </span>
-
-          <button
-            className={`studio-btn ${studio.whatsThisMode ? 'primary' : 'ghost'}`}
-            title="What's This? Contextual Help Mode (Shift+F1) — Click any panel to inspect documentation"
-            onClick={() => studio.setWhatsThisMode(!studio.whatsThisMode)}
-            style={{ padding: '2px 7px', fontWeight: 700 }}
-          >
-            ? Help
-          </button>
+          <div style={{ width: 1, height: 14, background: 'var(--border-subtle)', margin: '0 2px' }} />
 
           <button
             className="studio-btn ghost"
-            aria-label="Toggle Dark or Light Studio Theme"
-            title="Switch Dark / Precision Daylight Theme"
-            onClick={() => studio.updatePreferences({ theme: studio.preferences.theme === 'light' ? 'dark' : 'light' })}
+            style={{ minHeight: 24, padding: '2px 7px' }}
+            disabled={studio.undoCount === 0}
+            title="Undo (Ctrl/Cmd+Z)"
+            onClick={studio.undo}
           >
-            {studio.preferences.theme === 'light' ? <IconMoon /> : <IconSun />}
+            Undo {studio.undoCount > 0 ? `(${studio.undoCount})` : ''}
+          </button>
+          <button
+            className="studio-btn ghost"
+            style={{ minHeight: 24, padding: '2px 7px' }}
+            disabled={studio.redoCount === 0}
+            title="Redo (Ctrl/Cmd+Shift+Z)"
+            onClick={studio.redo}
+          >
+            Redo
+          </button>
+        </div>
+
+        {/* Center Command Search Bar */}
+        <button
+          className="studio-btn"
+          style={{
+            minHeight: 25,
+            minWidth: 220,
+            maxWidth: 320,
+            flex: 1,
+            justifyContent: 'space-between',
+            background: 'var(--bg-input)',
+            color: 'var(--text-muted)',
+            padding: '2px 8px',
+          }}
+          onClick={() => studio.setActiveModal('command-palette')}
+          title="Search All 186 Effects, Commands, Tools & Themes (Ctrl/Cmd+K)"
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <IconSearch size={12} />
+            <span>Search effects, tools, actions…</span>
+          </span>
+          <span className="kbd-chip">Ctrl+K</span>
+        </button>
+
+        {/* Right: Segmented Workspaces + Theme + Interactive Guide + Export */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className="segmented-control" role="tablist" aria-label="Workspace Layout">
+            {WORKSPACES.map((ws) => (
+              <button
+                key={ws.id}
+                role="tab"
+                aria-selected={studio.activeWorkspace === ws.id}
+                className={`segmented-item ${studio.activeWorkspace === ws.id ? 'active' : ''}`}
+                onClick={() => studio.setActiveWorkspace(ws.id)}
+              >
+                {ws.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            className="studio-btn"
+            style={{ minHeight: 25, padding: '2px 8px' }}
+            title="Cycle Mathematically Verified Themes (Obsidian / Daylight / OLED AAA+ / Graphite)"
+            onClick={cycleTheme}
+          >
+            {studio.preferences.theme === 'light' ? <IconSun size={13} /> : <IconMoon size={13} />}
+            <span>{THEME_LABELS[studio.preferences.theme] ?? 'Theme'}</span>
+          </button>
+
+          <button
+            className={`studio-btn ${studio.activeModal === 'guide' || studio.tourStep !== null ? 'subtle-active' : ''}`}
+            style={{ minHeight: 25, padding: '2px 9px' }}
+            title="Open Interactive Studio Guide & Hands-On Tutorial (F1)"
+            onClick={() => studio.setActiveModal('guide')}
+          >
+            <IconBookGuide size={13} />
+            <span>Guide</span>
+          </button>
+
+          <button
+            className="studio-btn primary"
+            style={{ minHeight: 25, padding: '2px 10px' }}
+            onClick={studio.addCurrentCompToRenderQueue}
+            title="Queue Active Composition for Local Export (Ctrl/Cmd+M)"
+          >
+            <IconDownload size={13} />
+            <span>{t('toolbar.export', loc)}</span>
           </button>
         </div>
       </div>
 
-      {/* Row 2: Precision Tool Strip + Quick Layer Creators + Undo/Redo + Render CTA */}
+      {/* Tier 2: Grouped Tool Strip + Compact "+ Add Layer" Popover + Precision Transport */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: 36,
+          height: 38,
           padding: '0 10px',
-          gap: 8,
+          gap: 10,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          {TOOLS.map((tool) => (
-            <button
-              key={tool.id}
-              aria-label={tool.label}
-              title={`${tool.label} (${tool.keyHint})`}
-              className={`studio-btn ${studio.activeTool === tool.id ? 'primary' : ''}`}
-              style={{ width: 28, height: 26, padding: 0 }}
-              onClick={() => studio.setActiveTool(tool.id)}
-            >
-              {tool.icon}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 2,
+              padding: 2,
+              borderRadius: 6,
+              background: 'var(--bg-inset)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            {renderToolCluster('nav')}
+            <div style={{ width: 1, height: 16, background: 'var(--border-subtle)', margin: '0 3px' }} />
+            {renderToolCluster('vector')}
+            <div style={{ width: 1, height: 16, background: 'var(--border-subtle)', margin: '0 3px' }} />
+            {renderToolCluster('vfx')}
+          </div>
 
-          <div style={{ width: 1, height: 18, background: 'var(--border-subtle)', margin: '0 6px' }} />
-
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>+ Layer:</span>
-          {(['text', 'shape', 'solid', 'null', 'adjustment', 'camera', 'light'] as const).map((lt) => (
+          <div style={{ position: 'relative' }}>
             <button
-              key={lt}
-              className="studio-btn"
-              style={{ padding: '2px 7px', fontSize: 10.5 }}
-              onClick={() => studio.addLayerOfType(lt)}
-              title={`Create new ${lt} layer in active composition`}
+              className={`studio-btn ${addLayerOpen ? 'subtle-active' : ''}`}
+              style={{ minHeight: 28, padding: '0 9px' }}
+              onClick={() => {
+                setOpenMenu(null);
+                setAddLayerOpen((v) => !v);
+              }}
+              title="Add Layer to Active Composition"
             >
-              {lt.charAt(0).toUpperCase() + lt.slice(1)}
+              <IconPlus size={12} />
+              <span>Add Layer</span>
+              <IconChevronDown size={11} />
             </button>
-          ))}
+            {addLayerOpen && (
+              <div className="popover-menu" style={{ minWidth: 230 }}>
+                {[
+                  { label: 'Typography Layer', hint: 'T', run: () => studio.addLayerOfType('text') },
+                  { label: 'Vector Shape Layer', hint: 'Q', run: () => studio.addLayerOfType('shape') },
+                  { label: 'Solid Color Matte', hint: 'Ctrl+Y', run: () => studio.addLayerOfType('solid') },
+                  { label: 'Null Controller Rig', hint: 'Rig', run: () => studio.addLayerOfType('null') },
+                  { label: 'Adjustment Layer', hint: 'Ctrl+Alt+Y', run: () => studio.addLayerOfType('adjustment') },
+                  { label: '3D Camera (35mm DoF)', hint: '3D', run: () => studio.addLayerOfType('camera') },
+                  { label: '3D Point Light', hint: '3D', run: () => studio.addLayerOfType('light') },
+                  { label: 'Non-Rendering Guide', hint: 'Guide', run: () => studio.addLayerOfType('guide') },
+                  { label: 'Pre-compose Selected', hint: 'Ctrl+Shift+C', run: () => studio.precomposeSelectedLayers() },
+                ].map((entry) => (
+                  <button
+                    key={entry.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      padding: '6px 9px',
+                      borderRadius: 5,
+                      color: 'var(--text-primary)',
+                      fontSize: 11.5,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    onClick={() => {
+                      setAddLayerOpen(false);
+                      entry.run();
+                    }}
+                  >
+                    <span>{entry.label}</span>
+                    <span className="kbd-chip">{entry.hint}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            className={`studio-btn ${studio.whatsThisMode ? 'active' : 'ghost'}`}
+            style={{ minHeight: 28, padding: '0 8px' }}
+            title="What's This? Click any panel to inspect documentation (Shift+F1)"
+            onClick={() => studio.setWhatsThisMode(!studio.whatsThisMode)}
+          >
+            ? Inspect
+          </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <button
-            className="studio-btn"
-            onClick={studio.undo}
-            disabled={studio.undoEntries.length === 0}
-            title="Undo (Ctrl+Z)"
-            style={{ opacity: studio.undoEntries.length === 0 ? 0.45 : 1, fontSize: 11 }}
+        {/* Precision Playback Transport + Timecode + Live Render Budget */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 2,
+              padding: 2,
+              borderRadius: 6,
+              background: 'var(--bg-inset)',
+              border: '1px solid var(--border-subtle)',
+            }}
           >
-            Undo
-          </button>
-          <button
-            className="studio-btn"
-            onClick={studio.redo}
-            disabled={studio.redoCount === 0}
-            title="Redo (Ctrl+Shift+Z)"
-            style={{ opacity: studio.redoCount === 0 ? 0.45 : 1, fontSize: 11 }}
+            <button
+              className="studio-btn ghost"
+              style={{ width: 26, height: 24, minHeight: 24, padding: 0 }}
+              title="Go to Start (Home)"
+              onClick={() => studio.setCurrentTime(0)}
+            >
+              <IconSkipStart size={12} />
+            </button>
+            <button
+              className="studio-btn ghost"
+              style={{ width: 26, height: 24, minHeight: 24, padding: 0 }}
+              title="Step 1 Frame Back (ArrowLeft)"
+              onClick={() => studio.setCurrentTime((tc) => Math.max(0, tc - 1 / fps))}
+            >
+              <IconStepBack size={12} />
+            </button>
+            <button
+              className={`studio-btn ${studio.isPlaying ? 'active' : ''}`}
+              style={{ minHeight: 24, padding: '0 10px' }}
+              title="RAM Preview Play / Pause (Space)"
+              onClick={() => studio.setIsPlaying((p) => !p)}
+            >
+              {studio.isPlaying ? <IconPause size={12} /> : <IconPlay size={12} />}
+              <span>{studio.isPlaying ? t('toolbar.stop', loc) : t('toolbar.play', loc)}</span>
+            </button>
+            <button
+              className="studio-btn ghost"
+              style={{ width: 26, height: 24, minHeight: 24, padding: 0 }}
+              title="Step 1 Frame Forward (ArrowRight)"
+              onClick={() => studio.setCurrentTime((tc) => Math.min(studio.activeComp?.duration ?? 10, tc + 1 / fps))}
+            >
+              <IconStepFwd size={12} />
+            </button>
+            <button
+              className={`studio-btn ${studio.loopPlayback ? 'subtle-active' : 'ghost'}`}
+              style={{ minHeight: 24, padding: '0 7px', fontSize: 10.5 }}
+              onClick={() => studio.setLoopPlayback(!studio.loopPlayback)}
+              title="Loop Work Area Playback"
+            >
+              Loop
+            </button>
+          </div>
+
+          <div
+            className="mono"
+            style={{
+              padding: '3px 9px',
+              background: 'var(--bg-inset)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 5,
+              color: 'var(--accent-amber)',
+              fontWeight: 600,
+              fontSize: 11.5,
+            }}
+            title="Current Timecode & Frame Index"
           >
-            Redo
-          </button>
-          <button
-            className="studio-btn"
-            onClick={() => studio.setActiveModal('history')}
-            title="Open Undo Stack & In-Project Git Commits"
-            style={{ fontSize: 11 }}
-          >
-            History ({studio.undoEntries.length})
-          </button>
-          <button
-            className="studio-btn"
-            onClick={() => void studio.saveProjectFileLocal()}
-            title="Save .prex project locally (Ctrl+S)"
-            style={{ fontSize: 11 }}
-          >
-            Save .prex
-          </button>
-          <button
-            className="studio-btn primary"
-            onClick={() => studio.addCurrentCompToRenderQueue()}
-            title="Queue active composition for local GIF/AVI/WAV/EXR/TGA export (Ctrl+M)"
-            style={{ fontSize: 11 }}
-          >
-            Export / Render Queue
-          </button>
+            {formatTimecode(studio.currentTime, fps)}{' '}
+            <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>({currentFrame}f)</span>
+          </div>
+
+          <span className="badge ok mono" title="Live Compositor Frame Time">
+            {fps}fps · {renderMs.toFixed(1)}ms
+          </span>
         </div>
       </div>
     </header>

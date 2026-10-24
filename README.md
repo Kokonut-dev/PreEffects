@@ -38,9 +38,13 @@
 PreEffects requires **no account, no license key, and no internet connection**.
 
 ### macOS (Apple Silicon & Intel — macOS 12 Monterey or newer)
-1. Download `PreEffects-<version>-universal.dmg` from [GitHub Releases](https://github.com/Kokonut-dev/PreEffects/releases).
+1. Download `PreEffects-<version>-mac-arm64.dmg` (Apple Silicon) or `PreEffects-<version>-mac-x64.dmg` (Intel) from [GitHub Releases](https://github.com/Kokonut-dev/PreEffects/releases).
 2. Open the `.dmg` archive and drag **PreEffects.app** to `/Applications`.
-3. Launch **PreEffects** — all preferences and caches are created locally under `~/Library/Application Support/PreEffects`.
+3. *(First launch on unsigned builds)* Clear the browser quarantine flag once in Terminal:
+   ```bash
+   xattr -cr /Applications/PreEffects.app
+   ```
+4. Launch **PreEffects** — all preferences and caches are created locally under `~/Library/Application Support/PreEffects`.
 
 ### Windows (x64 & ARM64 — Windows 10 / 11)
 1. Download `PreEffects-Setup-<version>.exe` (NSIS installer) or `PreEffects-<version>.msi` from [GitHub Releases](https://github.com/Kokonut-dev/PreEffects/releases).

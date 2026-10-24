@@ -4,6 +4,7 @@
   "copyright": "Copyright © 2026 PreEffects Contributors (MIT)",
   "publish": null,
   "npmRebuild": false,
+  "afterPack": "packaging/afterPack.cjs",
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "directories": {
     "buildResources": "packaging",

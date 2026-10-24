@@ -78,6 +78,13 @@ export const IconClone: React.FC<IconProps> = ({ size = 15, color = 'currentColo
   </svg>
 );
 
+export const IconEraser: React.FC<IconProps> = ({ size = 15, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round">
+    <path d="M9.5 2.8L13.5 6.8L7.2 13.2H3.8L2.2 11.5L9.5 2.8Z" />
+    <path d="M6.2 6.8L10.2 10.8M3.5 13.2H13.8" />
+  </svg>
+);
+
 export const IconRoto: React.FC<IconProps> = ({ size = 15, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
     <circle cx="8" cy="6" r="3" />
@@ -93,16 +100,35 @@ export const IconPin: React.FC<IconProps> = ({ size = 15, color = 'currentColor'
   </svg>
 );
 
-export const IconPlay: React.FC<IconProps> = ({ size = 14, color = 'currentColor' }) => (
+export const IconPlay: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
     <path d="M4.5 2.8L13.2 8L4.5 13.2V2.8Z" />
   </svg>
 );
 
-export const IconPause: React.FC<IconProps> = ({ size = 14, color = 'currentColor' }) => (
+export const IconPause: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
     <rect x="4" y="3" width="3" height="10" rx="0.8" />
     <rect x="9" y="3" width="3" height="10" rx="0.8" />
+  </svg>
+);
+
+export const IconSkipStart: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3.5 3.5v9" />
+    <path d="M12.5 3.5L6.5 8l6 4.5V3.5Z" fill={color} />
+  </svg>
+);
+
+export const IconStepBack: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
+    <path d="M11.5 3.5L5.2 8l6.3 4.5V3.5Z" />
+  </svg>
+);
+
+export const IconStepFwd: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill={color}>
+    <path d="M4.5 3.5L10.8 8l-6.3 4.5V3.5Z" />
   </svg>
 );
 
@@ -121,7 +147,14 @@ export const IconCube3D: React.FC<IconProps> = ({ size = 13, color = 'currentCol
 );
 
 export const IconDiamond: React.FC<{ active?: boolean; size?: number }> = ({ active = false, size = 12 }) => (
-  <svg width={size} height={size} viewBox="0 0 14 14" fill={active ? '#E89B3C' : 'none'} stroke={active ? '#E89B3C' : 'currentColor'} strokeWidth="1.4">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 14 14"
+    fill={active ? 'var(--accent-amber)' : 'none'}
+    stroke={active ? 'var(--accent-amber)' : 'currentColor'}
+    strokeWidth="1.4"
+  >
     <path d="M7 1.5L12.5 7L7 12.5L1.5 7L7 1.5Z" />
   </svg>
 );
@@ -136,5 +169,63 @@ export const IconSun: React.FC<IconProps> = ({ size = 14, color = 'currentColor'
 export const IconMoon: React.FC<IconProps> = ({ size = 14, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round">
     <path d="M13.2 10.2A5.5 5.5 0 0 1 5.8 2.8a5.6 5.6 0 1 0 7.4 7.4Z" />
+  </svg>
+);
+
+export const IconBookGuide: React.FC<IconProps> = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2.2 3.2c1.8-.6 3.8-.4 5.8.8 2-1.2 4-1.4 5.8-.8v9.6c-1.8-.6-3.8-.4-5.8.8-2-1.2-4-1.4-5.8-.8V3.2Z" />
+    <path d="M8 4v9.6" />
+  </svg>
+);
+
+export const IconSearch: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+    <circle cx="7" cy="7" r="4.3" />
+    <path d="M10.4 10.4L13.8 13.8" />
+  </svg>
+);
+
+export const IconCameraSnap: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.4" strokeLinejoin="round">
+    <path d="M2 5.2h2.2l1.1-1.7h5.4l1.1 1.7H14v7.3H2V5.2Z" />
+    <circle cx="8" cy="8.8" r="2.2" />
+  </svg>
+);
+
+export const IconRecordCapture: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.4">
+    <circle cx="8" cy="8" r="5.5" />
+    <circle cx="8" cy="8" r="2.4" fill={color} />
+  </svg>
+);
+
+export const IconStar: React.FC<IconProps & { filled?: boolean }> = ({ size = 13, color = 'currentColor', filled = false }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill={filled ? color : 'none'} stroke={color} strokeWidth="1.4" strokeLinejoin="round">
+    <path d="M8 2l1.8 3.7 4.1.6-3 2.9.7 4.1L8 11.4l-3.6 1.9.7-4.1-3-2.9 4.1-.6L8 2Z" />
+  </svg>
+);
+
+export const IconDownload: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 2.5v7.5M5 7.3L8 10.3l3-3M2.8 13h10.4" />
+  </svg>
+);
+
+export const IconPlus: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round">
+    <path d="M8 3v10M3 8h10" />
+  </svg>
+);
+
+export const IconChevronDown: React.FC<IconProps> = ({ size = 12, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4.2 6.2L8 10l3.8-3.8" />
+  </svg>
+);
+
+export const IconCheck: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3.2 8.4l3.1 3.1 6.5-6.8" />
   </svg>
 );
