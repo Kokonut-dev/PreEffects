@@ -63,7 +63,7 @@ PreEffects requires **no account, no license key, and no internet connection**.
   ```
 - **Flatpak**:
   ```bash
-  flatpak-builder --user --install --force-clean build-dir build/linux/dev.preeffects.PreEffects.yml
+  flatpak-builder --user --install --force-clean build-dir packaging/linux/dev.preeffects.PreEffects.yml
   ```
 
 ---
@@ -140,7 +140,7 @@ PreEffects/
 │   ├── unit/              # Engine, effects, expressions, masks, shapes, serialization tests
 │   ├── integration/       # End-to-end project lifecycle, node-layer sync, render queue tests
 │   └── performance/       # 100-layer scrubbing, 4K effect stack, 500-asset search benchmarks
-├── build/                 # macOS, Windows, and Linux packaging configurations & manifests
+├── packaging/             # macOS, Windows, and Linux Electron Builder configs, icons & manifests
 ├── scripts/               # Build, packaging, benchmark, icon rendering, and board scripts
 └── .github/workflows/     # Multi-OS CI/CD testing and release packaging pipelines
 ```

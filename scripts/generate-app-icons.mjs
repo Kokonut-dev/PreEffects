@@ -6,7 +6,7 @@ import { Resvg } from '@resvg/resvg-js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
-const iconsDir = path.join(rootDir, 'build/icons');
+const iconsDir = path.join(rootDir, 'packaging/icons');
 const publicDir = path.join(rootDir, 'public');
 
 fs.mkdirSync(iconsDir, { recursive: true });
@@ -42,23 +42,27 @@ const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512
 fs.writeFileSync(path.join(iconsDir, 'icon.svg'), svgIcon, 'utf8');
 fs.writeFileSync(path.join(publicDir, 'favicon.svg'), svgIcon, 'utf8');
 
-for (const sz of [512, 256, 128, 64, 32]) {
+for (const sz of [512, 256, 128, 64, 48, 32, 16]) {
   const resvg = new Resvg(svgIcon, { fitTo: { mode: 'width', value: sz } });
   const pngBytes = resvg.render().asPng();
-  const name = sz === 512 ? 'icon.png' : `icon-${sz}.png`;
-  fs.writeFileSync(path.join(iconsDir, name), pngBytes);
+  fs.writeFileSync(path.join(iconsDir, `icon-${sz}.png`), pngBytes);
+  if (sz === 512) {
+    fs.writeFileSync(path.join(iconsDir, 'icon.png'), pngBytes);
+  }
 }
 
-// Build multi-resolution Windows .ico via ImageMagick convert
+// Build multi-resolution Windows .ico via ImageMagick convert (16..256px layers)
 try {
   execFileSync('convert', [
+    path.join(iconsDir, 'icon-16.png'),
     path.join(iconsDir, 'icon-32.png'),
+    path.join(iconsDir, 'icon-48.png'),
     path.join(iconsDir, 'icon-64.png'),
     path.join(iconsDir, 'icon-128.png'),
     path.join(iconsDir, 'icon-256.png'),
     path.join(iconsDir, 'icon.ico'),
   ]);
-  console.log('Generated multi-platform icons (.svg, .png 32..512px, .ico)');
+  console.log('Generated multi-platform icons in packaging/icons/ (.svg, .png 16..512px, .ico)');
 } catch (err) {
   console.warn('Skipped .ico generation:', err);
 }

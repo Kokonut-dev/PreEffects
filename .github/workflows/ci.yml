@@ -10,9 +10,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   verify:
-    name: Verify (${{ matrix.os }})
+    name: Verify & Package (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -30,9 +33,11 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && (sudo apt-get install -y rpm libfuse2t64 || sudo apt-get install -y rpm libfuse2)
+
       - name: Install dependencies
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: npm ci || npm install
 
       - name: Typecheck
@@ -47,11 +52,37 @@ jobs:
       - name: Build Production Bundle
         run: npm run build
 
-      - name: Upload Build Artefacts
+      - name: Package Native Desktop Installers (Linux)
+        if: runner.os == 'Linux'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run package:linux
+
+      - name: Package Native Desktop Installers (macOS)
+        if: runner.os == 'macOS'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run package:mac
+
+      - name: Package Native Desktop Installers (Windows)
+        if: runner.os == 'Windows'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run package:win
+
+      - name: Upload Build & Installer Artefacts
         uses: actions/upload-artifact@v4
         with:
-          name: preeffects-dist-${{ matrix.os }}
+          name: preeffects-ci-${{ matrix.os }}
+          if-no-files-found: error
           path: |
             dist/
             dist-electron/
+            release/*.dmg
+            release/*.zip
+            release/*.exe
+            release/*.msi
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
           retention-days: 7

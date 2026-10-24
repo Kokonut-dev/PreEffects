@@ -4,7 +4,11 @@
   "version": "1.0.0",
   "description": "Professional, offline-first motion graphics and visual effects desktop workstation for macOS, Windows, and Linux.",
   "license": "MIT",
-  "author": "PreEffects Contributors",
+  "author": {
+    "name": "PreEffects Contributors",
+    "email": "maintainers@preeffects.dev",
+    "url": "https://github.com/Kokonut-dev/PreEffects"
+  },
   "homepage": "https://github.com/Kokonut-dev/PreEffects",
   "repository": {
     "type": "git",
@@ -21,26 +25,24 @@
     "test": "vitest run tests/unit tests/integration",
     "test:perf": "vitest run tests/performance",
     "test:all": "vitest run",
-    "render:assets": "node scripts/render-svg-assets.mjs",
-    "package:mac": "npm run build && electron-builder --mac dmg zip --config build/electron-builder.json",
-    "package:win": "npm run build && electron-builder --win nsis msi --config build/electron-builder.json",
-    "package:linux": "npm run build && electron-builder --linux AppImage deb rpm --config build/electron-builder.json"
-  },
-  "dependencies": {
-    "@fontsource/inter": "^5.3.0",
-    "@fontsource/jetbrains-mono": "^5.3.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "icons": "node scripts/generate-app-icons.mjs",
+    "package:mac": "npm run build && electron-builder --mac --publish never --config packaging/electron-builder.json",
+    "package:win": "npm run build && electron-builder --win --x64 --publish never --config packaging/electron-builder.json",
+    "package:linux": "npm run build && electron-builder --linux --x64 --publish never --config packaging/electron-builder.json"
   },
   "devDependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^33.3.1",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.24.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
     "vitest": "^2.1.8"
