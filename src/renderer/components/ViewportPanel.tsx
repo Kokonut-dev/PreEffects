@@ -2,30 +2,53 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { ViewportPresenter } from '../../engine/webglBackend';
 import { evaluateProperty } from '../../engine/expressions';
-import { createId } from '../../engine/factory';
+import { buildDefaultLayerForComp, createId } from '../../engine/factory';
+import { IconCameraSnap, IconRecordCapture } from './Icons';
+
+const TOOL_HINTS: Record<string, string> = {
+  selection: 'Drag to move selected layer · Shift constrains axis',
+  hand: 'Drag anywhere to pan viewport stage',
+  zoom: 'Click to zoom in · Alt+Click to zoom out',
+  rotate: 'Drag around layer pivot to rotate Z angle',
+  camera: 'Drag to orbit 3D Camera rig across stage',
+  anchor: 'Drag to reposition Anchor Pivot (Pan-Behind)',
+  'shape-rect': 'Click on stage to place a new Vector Shape layer',
+  pen: 'Click on stage to add Bezier Mask vertices',
+  text: 'Click on stage to place a new Typography layer',
+  brush: 'Drag on stage to paint non-destructive strokes',
+  clone: 'Drag on stage to clone-stamp pixels (+40px offset)',
+  eraser: 'Drag on stage to erase alpha non-destructively',
+  'roto-brush': 'Click foreground subject · Alt+Click background to refine AI matte',
+  'puppet-pin': 'Click to place Puppet Pin · Drag existing pin to deform mesh',
+};
 
 export const ViewportPanel: React.FC = () => {
   const studio = useStudio();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const presenterRef = useRef<ViewportPresenter | null>(null);
-  const [dragState, setDragState] = useState<{
-    mode: 'move' | 'paint' | 'roto' | 'puppet' | 'mask';
-    startX: number;
-    startY: number;
-    origPos: [number, number, number];
+  const [backendLabel, setBackendLabel] = useState<string>('WebGL2 GPU');
+  const [paintColor, setPaintColor] = useState('#4cc3ff');
+  const [paintRadius, setPaintRadius] = useState(16);
+
+  const dragRef = useRef<{
+    mode: 'move' | 'pan' | 'rotate' | 'camera' | 'anchor' | 'paint' | 'puppet-drag';
+    layerId?: string;
+    pinId?: string;
+    startClientX: number;
+    startClientY: number;
+    origA: number;
+    origB: number;
+    origC?: number;
+    origD?: number;
     points: Array<[number, number]>;
   } | null>(null);
-  const [paintColor, setPaintColor] = useState('#38BDF8');
-  const [paintRadius, setPaintRadius] = useState(14);
-  const [isRecordingScreen, setIsRecordingScreen] = useState(false);
 
-  // Initialize WebGL2 / Canvas2D Presenter
   useEffect(() => {
     if (!canvasRef.current) return;
     presenterRef.current = new ViewportPresenter(canvasRef.current, studio.preferences.gpuAcceleration);
+    setBackendLabel(presenterRef.current.backendName);
   }, [studio.preferences.gpuAcceleration]);
 
-  // Present composite pixels onto GPU/Canvas viewport
   useEffect(() => {
     const res = studio.lastFrameResult;
     if (!res || !presenterRef.current) return;
@@ -34,30 +57,107 @@ export const ViewportPanel: React.FC = () => {
       res.width,
       res.height,
       studio.checkerboard,
-      studio.snapshotBuffer,
+      studio.snapshotFrame,
       studio.wipeSplit01,
     );
-  }, [studio.lastFrameResult, studio.checkerboard, studio.snapshotBuffer, studio.wipeSplit01]);
+  }, [studio.lastFrameResult, studio.checkerboard, studio.snapshotFrame, studio.wipeSplit01]);
 
   const comp = studio.activeComp;
-  const selLayer = studio.selectedLayer;
+  const selLayer = studio.selectedLayer ?? comp?.layers[0];
+  if (!comp) return null;
+
+  const zoomScale = (studio.zoomPct / 100) * 0.56;
+  const displayW = Math.max(120, Math.round(comp.width * zoomScale));
+  const displayH = Math.max(80, Math.round(comp.height * zoomScale));
 
   const clientToCompCoords = (clientX: number, clientY: number): [number, number] => {
-    if (!canvasRef.current || !comp) return [0, 0];
+    if (!canvasRef.current) return [comp.width / 2, comp.height / 2];
     const rect = canvasRef.current.getBoundingClientRect();
     const nx = (clientX - rect.left) / Math.max(1, rect.width);
     const ny = (clientY - rect.top) / Math.max(1, rect.height);
     return [nx * comp.width, ny * comp.height];
   };
 
+  // BUG-P0-02 Fix: All 14 tools handled cleanly (even when no layer is selected!)
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!comp || !selLayer || selLayer.locked) return;
-    const [cx, cy] = clientToCompCoords(e.clientX, e.clientY);
-
-    if (studio.activeTool === 'brush' || studio.activeTool === 'clone' || studio.activeTool === 'eraser') {
-      setDragState({ mode: 'paint', startX: cx, startY: cy, origPos: [0, 0, 0], points: [[cx, cy]] });
+    if (e.button === 1 || studio.activeTool === 'hand') {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      dragRef.current = {
+        mode: 'pan',
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        origA: studio.viewportPan[0],
+        origB: studio.viewportPan[1],
+        points: [],
+      };
       return;
     }
+
+    const [cx, cy] = clientToCompCoords(e.clientX, e.clientY);
+
+    if (studio.activeTool === 'zoom') {
+      const factor = e.altKey ? 0.8 : 1.25;
+      studio.setZoomPct(Math.max(25, Math.min(400, Math.round(studio.zoomPct * factor))));
+      return;
+    }
+
+    if (studio.activeTool === 'shape-rect') {
+      studio.addLayerOfType('shape', [cx, cy]);
+      studio.setActiveTool('selection');
+      return;
+    }
+
+    if (studio.activeTool === 'text') {
+      studio.addLayerOfType('text', [cx, cy]);
+      studio.setActiveTool('selection');
+      studio.setRightTab('inspector');
+      return;
+    }
+
+    if (studio.activeTool === 'camera') {
+      let camLayer = comp.layers.find((l) => l.type === 'camera');
+      const camId = camLayer ? camLayer.id : studio.addLayerOfType('camera');
+      const origX = camLayer ? camLayer.transform.position.value[0] : comp.width / 2;
+      const origY = camLayer ? camLayer.transform.position.value[1] : comp.height / 2;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      dragRef.current = {
+        mode: 'camera',
+        layerId: camId,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        origA: origX,
+        origB: origY,
+        points: [],
+      };
+      return;
+    }
+
+    if (!selLayer || selLayer.locked) {
+      if (studio.activeTool === 'pen' && !selLayer) {
+        studio.addLayerOfType('shape', [cx, cy]);
+      }
+      return;
+    }
+
+    if (!studio.selectedLayerIds.includes(selLayer.id)) {
+      studio.setSelectedLayerIds([selLayer.id]);
+    }
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    if (studio.activeTool === 'brush' || studio.activeTool === 'clone' || studio.activeTool === 'eraser') {
+      dragRef.current = {
+        mode: 'paint',
+        layerId: selLayer.id,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        origA: 0,
+        origB: 0,
+        points: [[cx, cy]],
+      };
+      return;
+    }
+
     if (studio.activeTool === 'roto-brush') {
       const isBg = e.altKey;
       studio.commitProjectChange('Add Local AI Roto Seed', (draft) => {
@@ -69,20 +169,44 @@ export const ViewportPanel: React.FC = () => {
         if (isBg) l.rotoBackgroundSeeds = [...(l.rotoBackgroundSeeds ?? []), norm];
         else l.rotoForegroundSeeds = [...(l.rotoForegroundSeeds ?? []), norm];
       });
-      studio.notify(e.altKey ? 'Added AI Roto Background exclusion stroke' : 'Added AI Roto Foreground seed (Alt+Click for Background)');
+      studio.notify(isBg ? 'Added AI Roto Background exclusion stroke' : 'Added AI Roto Foreground seed (Alt+Click for Background)');
       return;
     }
+
     if (studio.activeTool === 'puppet-pin') {
-      studio.commitProjectChange('Place Puppet Deform Pin', (draft) => {
-        const c = draft.compositions.find((x) => x.id === draft.activeCompId);
-        const l = c?.layers.find((x) => x.id === selLayer.id);
-        if (l) {
-          l.puppetPins.push({ id: createId('pin'), kind: 'position', restX: cx, restY: cy, currentX: cx + 18, currentY: cy - 12, stiffness: 50 });
-        }
-      });
-      studio.notify('Placed Puppet Deform Pin on layer mesh');
+      const nearPin = selLayer.puppetPins.find((p) => Math.hypot(p.currentX - cx, p.currentY - cy) <= 28);
+      if (nearPin) {
+        dragRef.current = {
+          mode: 'puppet-drag',
+          layerId: selLayer.id,
+          pinId: nearPin.id,
+          startClientX: e.clientX,
+          startClientY: e.clientY,
+          origA: nearPin.currentX,
+          origB: nearPin.currentY,
+          points: [],
+        };
+      } else {
+        studio.commitProjectChange('Place Puppet Deform Pin', (draft) => {
+          const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+          const l = c?.layers.find((x) => x.id === selLayer.id);
+          if (l) {
+            l.puppetPins.push({
+              id: createId('pin'),
+              kind: 'position',
+              restX: cx,
+              restY: cy,
+              currentX: cx,
+              currentY: cy,
+              stiffness: 50,
+            });
+          }
+        });
+        studio.notify('Placed Puppet Deform Pin — drag pin to deform mesh');
+      }
       return;
     }
+
     if (studio.activeTool === 'pen') {
       studio.commitProjectChange('Add Bezier Mask Vertex', (draft) => {
         const c = draft.compositions.find((x) => x.id === draft.activeCompId);
@@ -97,401 +221,548 @@ export const ViewportPanel: React.FC = () => {
             locked: false,
             rotoBezier: false,
             closed: true,
-            feather: 6,
+            feather: 8,
             expansion: 0,
             opacity: 100,
             vertices: [
-              { x: cx - 140, y: cy - 90, inX: 0, inY: 0, outX: 0, outY: 0 },
-              { x: cx + 140, y: cy - 90, inX: 0, inY: 0, outX: 0, outY: 0 },
-              { x: cx + 140, y: cy + 90, inX: 0, inY: 0, outX: 0, outY: 0 },
-              { x: cx - 140, y: cy + 90, inX: 0, inY: 0, outX: 0, outY: 0 },
+              { x: cx - 120, y: cy - 80, inX: 0, inY: 0, outX: 0, outY: 0 },
+              { x: cx + 120, y: cy - 80, inX: 0, inY: 0, outX: 0, outY: 0 },
+              { x: cx + 120, y: cy + 80, inX: 0, inY: 0, outX: 0, outY: 0 },
+              { x: cx - 120, y: cy + 80, inX: 0, inY: 0, outX: 0, outY: 0 },
             ],
           });
         } else {
           l.masks[0].vertices.push({ x: cx, y: cy, inX: 0, inY: 0, outX: 0, outY: 0 });
         }
       });
-      studio.notify('Added Bezier Mask on selected layer');
+      studio.notify('Updated Bezier Mask on selected layer');
       return;
     }
 
     const pos = evaluateProperty(selLayer.transform.position, studio.currentTime, selLayer, comp, studio.project).value;
-    setDragState({ mode: 'move', startX: cx, startY: cy, origPos: [...pos] as [number, number, number], points: [] });
+    if (studio.activeTool === 'rotate') {
+      const startAngle = Math.atan2(cy - pos[1], cx - pos[0]);
+      dragRef.current = {
+        mode: 'rotate',
+        layerId: selLayer.id,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        origA: selLayer.transform.rotationZ.value,
+        origB: startAngle,
+        points: [],
+      };
+      return;
+    }
+
+    if (studio.activeTool === 'anchor') {
+      dragRef.current = {
+        mode: 'anchor',
+        layerId: selLayer.id,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        origA: selLayer.transform.anchorPoint.value[0],
+        origB: selLayer.transform.anchorPoint.value[1],
+        origC: pos[0],
+        origD: pos[1],
+        points: [],
+      };
+      return;
+    }
+
+    dragRef.current = {
+      mode: 'move',
+      layerId: selLayer.id,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      origA: pos[0],
+      origB: pos[1],
+      points: [],
+    };
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragState || !comp || !selLayer) return;
-    const [cx, cy] = clientToCompCoords(e.clientX, e.clientY);
-    if (dragState.mode === 'paint') {
-      setDragState((prev) => (prev ? { ...prev, points: [...prev.points, [cx, cy]] } : null));
+    const dr = dragRef.current;
+    if (!dr) return;
+
+    if (dr.mode === 'pan') {
+      studio.setViewportPan([
+        Math.round(dr.origA + (e.clientX - dr.startClientX)),
+        Math.round(dr.origB + (e.clientY - dr.startClientY)),
+      ]);
       return;
     }
-    if (dragState.mode === 'move') {
-      const dx = cx - dragState.startX;
-      const dy = cy - dragState.startY;
-      const nextPos: [number, number, number] = [
-        Math.round(dragState.origPos[0] + dx),
-        Math.round(dragState.origPos[1] + dy),
-        dragState.origPos[2],
-      ];
+
+    if (dr.mode === 'paint') {
+      dr.points.push(clientToCompCoords(e.clientX, e.clientY));
+      return;
+    }
+
+    const dx = (e.clientX - dr.startClientX) / Math.max(0.05, zoomScale);
+    const dy = (e.clientY - dr.startClientY) / Math.max(0.05, zoomScale);
+
+    if (dr.mode === 'move' && dr.layerId) {
+      const cdx = e.shiftKey && Math.abs(dy) > Math.abs(dx) ? 0 : dx;
+      const cdy = e.shiftKey && Math.abs(dx) >= Math.abs(dy) ? 0 : dy;
       studio.commitProjectChange(
-        `Move ${selLayer.name}`,
+        'Move Layer on Stage',
         (draft) => {
           const c = draft.compositions.find((x) => x.id === draft.activeCompId);
-          const l = c?.layers.find((x) => x.id === selLayer.id);
-          if (!l) return;
-          if (l.transform.position.animated) {
-            const kf = l.transform.position.keyframes.find((k) => Math.abs(k.time - studio.currentTime) < 0.04);
-            if (kf) kf.value = nextPos;
-            else l.transform.position.keyframes.push({ id: createId('kf'), time: studio.currentTime, value: nextPos, interpolation: 'bezier' });
-          } else {
-            l.transform.position.value = nextPos;
-          }
+          const l = c?.layers.find((x) => x.id === dr.layerId);
+          if (!l || l.locked) return;
+          l.transform.position.value = [Math.round(dr.origA + cdx), Math.round(dr.origB + cdy), l.transform.position.value[2]];
         },
-        `drag_pos_${selLayer.id}`,
+        `move_${dr.layerId}`,
+      );
+    } else if (dr.mode === 'rotate' && dr.layerId) {
+      const [cx, cy] = clientToCompCoords(e.clientX, e.clientY);
+      studio.commitProjectChange(
+        'Rotate Layer on Stage',
+        (draft) => {
+          const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+          const l = c?.layers.find((x) => x.id === dr.layerId);
+          if (!l || l.locked) return;
+          const curAngle = Math.atan2(cy - l.transform.position.value[1], cx - l.transform.position.value[0]);
+          const degDelta = ((curAngle - dr.origB) * 180) / Math.PI;
+          l.transform.rotationZ.value = Number((dr.origA + degDelta).toFixed(1));
+        },
+        `rot_${dr.layerId}`,
+      );
+    } else if (dr.mode === 'anchor' && dr.layerId) {
+      studio.commitProjectChange(
+        'Pan-Behind Anchor Point',
+        (draft) => {
+          const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+          const l = c?.layers.find((x) => x.id === dr.layerId);
+          if (!l || l.locked) return;
+          l.transform.anchorPoint.value = [Math.round(dr.origA + dx), Math.round(dr.origB + dy), l.transform.anchorPoint.value[2]];
+          l.transform.position.value = [Math.round((dr.origC ?? 0) + dx), Math.round((dr.origD ?? 0) + dy), l.transform.position.value[2]];
+        },
+        `anc_${dr.layerId}`,
+      );
+    } else if (dr.mode === 'camera' && dr.layerId) {
+      studio.commitProjectChange(
+        'Orbit 3D Camera',
+        (draft) => {
+          const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+          const l = c?.layers.find((x) => x.id === dr.layerId);
+          if (!l) return;
+          l.transform.position.value = [Math.round(dr.origA - dx * 1.2), Math.round(dr.origB - dy * 1.2), l.transform.position.value[2]];
+        },
+        `cam_${dr.layerId}`,
+      );
+    } else if (dr.mode === 'puppet-drag' && dr.layerId && dr.pinId) {
+      studio.commitProjectChange(
+        'Deform Puppet Pin',
+        (draft) => {
+          const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+          const l = c?.layers.find((x) => x.id === dr.layerId);
+          const pin = l?.puppetPins.find((p) => p.id === dr.pinId);
+          if (!pin) return;
+          pin.currentX = Math.round(dr.origA + dx);
+          pin.currentY = Math.round(dr.origB + dy);
+        },
+        `pin_${dr.pinId}`,
       );
     }
   };
 
   const onPointerUp = () => {
-    if (dragState?.mode === 'paint' && selLayer && dragState.points.length > 0) {
-      studio.recordPaintStroke(selLayer.id, {
-        id: createId('pnt'),
-        tool: studio.activeTool === 'clone' ? 'clone' : studio.activeTool === 'eraser' ? 'eraser' : 'brush',
+    const dr = dragRef.current;
+    dragRef.current = null;
+    if (dr && dr.mode === 'paint' && dr.layerId && dr.points.length >= 1) {
+      const pts: Array<[number, number]> =
+        dr.points.length === 1
+          ? [dr.points[0], [dr.points[0][0] + 1, dr.points[0][1] + 1]]
+          : dr.points;
+      const toolKind: 'brush' | 'clone' | 'eraser' =
+        studio.activeTool === 'clone' ? 'clone' : studio.activeTool === 'eraser' ? 'eraser' : 'brush';
+      studio.recordPaintStroke(dr.layerId, {
+        id: createId('stroke'),
+        tool: toolKind,
         color: paintColor,
         radius: paintRadius,
-        hardness: 75,
-        opacity: 95,
-        durationMode: 'constant',
+        hardness: 0.85,
+        opacity: 0.92,
         startTime: 0,
+        durationMode: 'constant',
         duration: comp.duration,
-        points: dragState.points,
         cloneOffset: [40, 0],
+        points: pts,
       });
     }
-    setDragState(null);
   };
 
-  // EXCEED-13: Local Screen / Webcam Capture directly onto Timeline Layer
+  // BUG-P1-04 Fix: Real frame rasterization from DisplayMedia stream into ProjectAsset.rgbaBuffer
   const captureDisplayFrameAsLayer = async () => {
-    if (!navigator.mediaDevices?.getDisplayMedia) {
-      studio.notify('Screen capture API unavailable in this environment — created synthetic studio capture plate');
-      studio.addLayerOfType('solid');
-      return;
-    }
     try {
-      setIsRecordingScreen(true);
+      if (!navigator.mediaDevices?.getDisplayMedia) {
+        studio.addLayerOfType('solid');
+        return;
+      }
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.muted = true;
+      await video.play();
+      const vw = Math.max(1, Math.min(3840, video.videoWidth || comp.width));
+      const vh = Math.max(1, Math.min(2160, video.videoHeight || comp.height));
+      const cnv = document.createElement('canvas');
+      cnv.width = vw;
+      cnv.height = vh;
+      const ctx = cnv.getContext('2d');
+      const rgba = ctx
+        ? (() => {
+            ctx.drawImage(video, 0, 0, vw, vh);
+            return new Uint8ClampedArray(ctx.getImageData(0, 0, vw, vh).data);
+          })()
+        : undefined;
       stream.getTracks().forEach((tr) => tr.stop());
-      setIsRecordingScreen(false);
-      studio.addLayerOfType('footage');
-      studio.notify('Captured live screen plate into active composition');
+
+      const assetId = createId('ast');
+      const layerId = createId('lyr');
+      studio.commitProjectChange(`Screen Capture Plate (${vw}×${vh})`, (draft) => {
+        draft.assets.push({
+          id: assetId,
+          name: `ScreenCapture_${vw}x${vh}.png`,
+          folder: '03_Captures',
+          kind: 'image',
+          path: 'ScreenCapture.png',
+          width: vw,
+          height: vh,
+          rgbaBuffer: rgba,
+        });
+        const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+        if (c) {
+          const lyr = buildDefaultLayerForComp('footage', c, layerId);
+          lyr.name = 'Screen Capture Plate';
+          lyr.assetId = assetId;
+          c.layers.unshift(lyr);
+        }
+      });
+      studio.setSelectedLayerIds([layerId]);
+      studio.notify(`Captured screen plate (${vw}×${vh}) into active composition`);
     } catch {
-      setIsRecordingScreen(false);
+      studio.notify('Screen capture cancelled');
     }
   };
 
-  const evalLayerPos =
-    comp && selLayer
-      ? evaluateProperty(selLayer.transform.position, studio.currentTime, selLayer, comp, studio.project).value
-      : null;
+  const selPos = selLayer
+    ? evaluateProperty(selLayer.transform.position, studio.currentTime, selLayer, comp, studio.project).value
+    : [comp.width / 2, comp.height / 2, 0];
+
+  const isPaintTool = studio.activeTool === 'brush' || studio.activeTool === 'clone' || studio.activeTool === 'eraser';
+  const stageCursor =
+    studio.activeTool === 'hand'
+      ? 'grab'
+      : studio.activeTool === 'zoom'
+      ? 'zoom-in'
+      : studio.activeTool === 'text'
+      ? 'text'
+      : 'crosshair';
 
   return (
-    <main
+    <section
       style={{
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--bg-canvas)',
         overflow: 'hidden',
-        minWidth: 380,
+        minWidth: 0,
       }}
     >
-      {/* Top Comp Tabs & Breadcrumb Navigation */}
+      {/* Top Viewport Control Strip */}
       <div className="panel-header" style={{ gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto' }}>
-          {studio.project.compositions.map((c) => (
-            <button
-              key={c.id}
-              className={`studio-btn ${c.id === comp?.id ? 'primary' : 'ghost'}`}
-              style={{ padding: '2px 8px', fontSize: 11 }}
-              onClick={() => studio.openActiveComp(c.id)}
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {(studio.activeTool === 'brush' || studio.activeTool === 'clone') && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <input type="color" value={paintColor} onChange={(e) => setPaintColor(e.target.value)} style={{ width: 20, height: 20, border: 'none', background: 'none' }} />
-              <span className="mono" style={{ fontSize: 10 }}>Size:</span>
-              <input
-                type="range"
-                min={2}
-                max={60}
-                value={paintRadius}
-                onChange={(e) => setPaintRadius(Number(e.target.value))}
-                style={{ width: 64 }}
-              />
-            </div>
-          )}
-          <span className="badge cyan mono">
-            {presenterRef.current?.backendName ?? 'WebGL2 GPU'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {comp.name}
           </span>
-          {studio.lastFrameResult && (
-            <span className={`badge ${studio.lastFrameResult.fromCache ? 'ok' : 'amber'} mono`}>
-              {studio.lastFrameResult.fromCache ? 'RAM HIT' : `${studio.lastFrameResult.totalTimeMs.toFixed(1)} ms`}
-            </span>
-          )}
+          <span className="badge cyan mono">{backendLabel}</span>
+          <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+            {comp.width}×{comp.height}
+          </span>
         </div>
-      </div>
 
-      {/* Central Composition Stage */}
-      <div
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        style={{
-          flex: 1,
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          overflow: 'hidden',
-          padding: 18,
-          cursor:
-            studio.activeTool === 'hand'
-              ? 'grab'
-              : studio.activeTool === 'brush' || studio.activeTool === 'pen' || studio.activeTool === 'roto-brush'
-                ? 'crosshair'
-                : 'default',
-        }}
-      >
-        <div
-          style={{
-            position: 'relative',
-            aspectRatio: `${comp?.width ?? 1920} / ${comp?.height ?? 1080}`,
-            maxWidth: `${studio.zoomPct}%`,
-            maxHeight: `${studio.zoomPct}%`,
-            width: '100%',
-            boxShadow: '0 14px 42px rgba(0,0,0,0.62)',
-            border: '1px solid var(--border-strong)',
-            background: '#05070B',
-          }}
-        >
-          <canvas
-            ref={canvasRef}
-            style={{ width: '100%', height: '100%', display: 'block' }}
-          />
-
-          {/* Title & Action Safe Overlay */}
-          {studio.showSafeZones && (
-            <>
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: '5%',
-                  border: '1px dashed rgba(56, 189, 248, 0.28)',
-                  pointerEvents: 'none',
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: '10%',
-                  border: '1px dashed rgba(232, 155, 60, 0.28)',
-                  pointerEvents: 'none',
-                }}
-              />
-            </>
-          )}
-
-          {/* Proportional Rule-of-Thirds Grid */}
-          {studio.showGrid && (
-            <svg
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-            >
-              <line x1="33.33" y1="0" x2="33.33" y2="100" stroke="rgba(255,255,255,0.18)" strokeWidth="0.2" />
-              <line x1="66.66" y1="0" x2="66.66" y2="100" stroke="rgba(255,255,255,0.18)" strokeWidth="0.2" />
-              <line x1="0" y1="33.33" x2="100" y2="33.33" stroke="rgba(255,255,255,0.18)" strokeWidth="0.2" />
-              <line x1="0" y1="66.66" x2="100" y2="66.66" stroke="rgba(255,255,255,0.18)" strokeWidth="0.2" />
-            </svg>
-          )}
-
-          {/* Selected Layer Center Anchor & Transform Reticle */}
-          {comp && selLayer && evalLayerPos && selLayer.visible && (
-            <div
-              style={{
-                position: 'absolute',
-                left: `${(evalLayerPos[0] / comp.width) * 100}%`,
-                top: `${(evalLayerPos[1] / comp.height) * 100}%`,
-                transform: 'translate(-50%, -50%)',
-                width: 18,
-                height: 18,
-                border: `1.5px solid ${selLayer.labelColor || '#E89B3C'}`,
-                borderRadius: '50%',
-                pointerEvents: 'none',
-                boxShadow: '0 0 0 1px rgba(0,0,0,0.75)',
-              }}
-            >
-              <div style={{ position: 'absolute', left: '50%', top: -4, bottom: -4, width: 1, background: selLayer.labelColor || '#E89B3C' }} />
-              <div style={{ position: 'absolute', top: '50%', left: -4, right: -4, height: 1, background: selLayer.labelColor || '#E89B3C' }} />
-            </div>
-          )}
-
-          {/* Snapshot A/B Wipe Divider Line */}
-          {studio.snapshotBuffer && studio.wipeSplit01 > 0.01 && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                bottom: 0,
-                left: `${studio.wipeSplit01 * 100}%`,
-                width: 2,
-                background: 'var(--accent-amber)',
-                pointerEvents: 'none',
-              }}
-            />
-          )}
-
-          {/* Studio Empty Composition Quick-Start State */}
-          {comp && comp.layers.length === 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                background: 'rgba(10, 13, 20, 0.72)',
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
-                {comp.name} — Empty Composition Stage
-              </div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                Create your first layer or load a studio motion template to begin compositing:
-              </div>
-              <div style={{ display: 'flex', gap: 6 }} onPointerDown={(e) => e.stopPropagation()}>
-                <button className="studio-btn primary" onClick={() => studio.addLayerOfType('text')}>+ Text Layer</button>
-                <button className="studio-btn" onClick={() => studio.addLayerOfType('shape')}>+ Vector Shape</button>
-                <button className="studio-btn" onClick={() => studio.addLayerOfType('solid')}>+ Solid Plate</button>
-                <button className="studio-btn" onClick={() => studio.loadTemplateProject('orbital-hero')}>Load Showcase</button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Bottom Viewport Precision Controls HUD */}
-      <div
-        style={{
-          height: 32,
-          padding: '0 10px',
-          background: 'var(--bg-panel)',
-          borderTop: '1px solid var(--border-subtle)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          fontSize: 11,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <select
+            className="studio-select"
             aria-label="Viewport Zoom"
-            className="studio-select mono"
             value={studio.zoomPct}
             onChange={(e) => studio.setZoomPct(Number(e.target.value))}
           >
             <option value={50}>50%</option>
             <option value={75}>75%</option>
             <option value={100}>Fit (100%)</option>
-            <option value={135}>135%</option>
+            <option value={150}>150%</option>
+            <option value={200}>200%</option>
           </select>
 
           <select
-            aria-label="Preview Resolution"
             className="studio-select"
+            aria-label="Preview Resolution"
             value={studio.resolutionDivisor}
             onChange={(e) => studio.setResolutionDivisor(Number(e.target.value) as 1 | 2 | 3 | 4)}
+            title="Adaptive Preview Resolution"
           >
-            <option value={1}>Full (1:1)</option>
-            <option value={2}>Half (1:2)</option>
-            <option value={3}>Third (1:3)</option>
-            <option value={4}>Quarter (1:4)</option>
+            <option value={1}>Full</option>
+            <option value={2}>Half</option>
+            <option value={4}>Quarter</option>
           </select>
 
           <select
-            aria-label="Channel Viewer"
             className="studio-select"
+            aria-label="Channel View"
             value={studio.channelView}
-            onChange={(e) => studio.setChannelView(e.target.value as 'rgb' | 'red' | 'green' | 'blue' | 'alpha')}
+            onChange={(e) => studio.setChannelView(e.target.value as typeof studio.channelView)}
           >
-            <option value="rgb">RGB Composite</option>
-            <option value="red">Red Channel</option>
-            <option value="green">Green Channel</option>
-            <option value="blue">Blue Channel</option>
-            <option value="alpha">Alpha Matte</option>
+            <option value="rgb">RGB</option>
+            <option value="red">Red</option>
+            <option value="green">Green</option>
+            <option value="blue">Blue</option>
+            <option value="alpha">Alpha</option>
+          </select>
+
+          <select
+            className="studio-select"
+            aria-label="AOV Pass"
+            value={studio.aovView}
+            onChange={(e) => studio.setAovView(e.target.value as 'beauty' | 'z-depth')}
+          >
+            <option value="beauty">Beauty</option>
+            <option value="z-depth">Z-Depth</option>
           </select>
 
           <button
-            className={`studio-btn ${studio.checkerboard ? 'active' : ''}`}
-            onClick={() => studio.setCheckerboard(!studio.checkerboard)}
-            title="Toggle Transparency Grid"
-          >
-            Alpha Grid
-          </button>
-          <button
-            className={`studio-btn ${studio.showSafeZones ? 'active' : ''}`}
+            className={`studio-btn ${studio.showSafeZones ? 'subtle-active' : ''}`}
             onClick={() => studio.setShowSafeZones(!studio.showSafeZones)}
-            title="Toggle Title & Action Safe Overlay"
+            title="Toggle Action & Title Safe Guides"
           >
-            Safe Zones
+            Safe
           </button>
           <button
-            className={`studio-btn ${studio.showGrid ? 'active' : ''}`}
+            className={`studio-btn ${studio.showGrid ? 'subtle-active' : ''}`}
             onClick={() => studio.setShowGrid(!studio.showGrid)}
-            title="Toggle Rule-of-Thirds Grid"
+            title="Toggle Proportional Grid"
           >
             Grid
           </button>
-        </div>
-
-        {/* Snapshot A/B Comparison + Screen Recorder */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button className="studio-btn" onClick={studio.takeSnapshot} title="Capture Viewport Snapshot for A/B Split Compare">
-            📷 Snapshot
-          </button>
-          {studio.snapshotBuffer && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span className="mono" style={{ fontSize: 10, color: 'var(--accent-amber)' }}>A/B:</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={Math.round(studio.wipeSplit01 * 100)}
-                onChange={(e) => studio.setWipeSplit01(Number(e.target.value) / 100)}
-                style={{ width: 65 }}
-              />
-            </div>
-          )}
           <button
-            className="studio-btn"
-            onClick={() => void captureDisplayFrameAsLayer()}
-            disabled={isRecordingScreen}
-            title="Record Screen / Window Plate directly into Timeline (EXCEED-13)"
+            className={`studio-btn ${studio.checkerboard ? 'subtle-active' : ''}`}
+            onClick={() => studio.setCheckerboard(!studio.checkerboard)}
+            title="Toggle Transparency Checkerboard"
           >
-            ⏺ Capture Plate
+            Alpha
+          </button>
+          <button className="studio-btn" onClick={studio.takeSnapshot} title="Capture Snapshot for A/B Split-Wipe (F5)">
+            <IconCameraSnap size={12} /> Snapshot
+          </button>
+          <button className="studio-btn" onClick={captureDisplayFrameAsLayer} title="Capture Live Screen Frame as Layer">
+            <IconRecordCapture size={12} /> Capture
           </button>
         </div>
       </div>
-    </main>
+
+      {/* Main Interactive Canvas Stage */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+          position: 'relative',
+          padding: 16,
+        }}
+      >
+        <div
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          style={{
+            position: 'relative',
+            width: displayW,
+            height: displayH,
+            transform: `translate(${studio.viewportPan[0]}px, ${studio.viewportPan[1]}px)`,
+            boxShadow: '0 14px 42px rgba(0,0,0,0.48), 0 0 0 1px var(--border-strong)',
+            cursor: stageCursor,
+            flexShrink: 0,
+          }}
+        >
+          <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', borderRadius: 2 }} />
+
+          <svg
+            width={displayW}
+            height={displayH}
+            viewBox={`0 0 ${comp.width} ${comp.height}`}
+            style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+          >
+            {studio.showGrid &&
+              Array.from({ length: 11 }, (_, i) => (
+                <React.Fragment key={i}>
+                  <line
+                    x1={(comp.width / 12) * (i + 1)}
+                    y1={0}
+                    x2={(comp.width / 12) * (i + 1)}
+                    y2={comp.height}
+                    stroke="rgba(255,255,255,0.14)"
+                    strokeWidth={1.5}
+                  />
+                  <line
+                    x1={0}
+                    y1={(comp.height / 12) * (i + 1)}
+                    x2={comp.width}
+                    y2={(comp.height / 12) * (i + 1)}
+                    stroke="rgba(255,255,255,0.14)"
+                    strokeWidth={1.5}
+                  />
+                </React.Fragment>
+              ))}
+
+            {studio.showSafeZones && (
+              <>
+                <rect
+                  x={comp.width * 0.05}
+                  y={comp.height * 0.05}
+                  width={comp.width * 0.9}
+                  height={comp.height * 0.9}
+                  fill="none"
+                  stroke="rgba(76, 195, 255, 0.45)"
+                  strokeWidth={2}
+                  strokeDasharray="10 6"
+                />
+                <rect
+                  x={comp.width * 0.1}
+                  y={comp.height * 0.1}
+                  width={comp.width * 0.8}
+                  height={comp.height * 0.8}
+                  fill="none"
+                  stroke="rgba(245, 165, 36, 0.35)"
+                  strokeWidth={2}
+                  strokeDasharray="6 6"
+                />
+              </>
+            )}
+
+            {selLayer && selLayer.visible && (
+              <g>
+                <circle cx={selPos[0]} cy={selPos[1]} r={10} fill="none" stroke="#f5a524" strokeWidth={2.5} />
+                <line x1={selPos[0] - 16} y1={selPos[1]} x2={selPos[0] + 16} y2={selPos[1]} stroke="#f5a524" strokeWidth={2} />
+                <line x1={selPos[0]} y1={selPos[1] - 16} x2={selPos[0]} y2={selPos[1] + 16} stroke="#f5a524" strokeWidth={2} />
+                {selLayer.masks.map((m) =>
+                  m.vertices.length >= 2 ? (
+                    <polygon
+                      key={m.id}
+                      points={m.vertices.map((v) => `${v.x},${v.y}`).join(' ')}
+                      fill="none"
+                      stroke="#3dd68c"
+                      strokeWidth={3}
+                    />
+                  ) : null,
+                )}
+                {selLayer.puppetPins.map((pin, idx) => (
+                  <g key={pin.id}>
+                    <circle cx={pin.currentX} cy={pin.currentY} r={11} fill="#ffcc00" stroke="#090b0f" strokeWidth={3} />
+                    <text x={pin.currentX + 14} y={pin.currentY + 5} fill="#ffcc00" fontSize={20} fontWeight={700}>
+                      P{idx + 1}
+                    </text>
+                  </g>
+                ))}
+              </g>
+            )}
+
+            {studio.snapshotFrame && studio.wipeSplit01 > 0.005 && (
+              <g>
+                <line
+                  x1={comp.width * studio.wipeSplit01}
+                  y1={0}
+                  x2={comp.width * studio.wipeSplit01}
+                  y2={comp.height}
+                  stroke="#f5a524"
+                  strokeWidth={4}
+                />
+                <rect x={comp.width * studio.wipeSplit01 - 46} y={18} width={92} height={28} rx={6} fill="#0b0c0e" stroke="#f5a524" strokeWidth={2} />
+                <text x={comp.width * studio.wipeSplit01} y={37} textAnchor="middle" fill="#f4f6fa" fontSize={18} fontWeight={700}>
+                  SNAP | LIVE
+                </text>
+              </g>
+            )}
+          </svg>
+        </div>
+      </div>
+
+      {/* Bottom Viewport Context Bar */}
+      <div
+        style={{
+          height: 30,
+          background: 'var(--bg-panel)',
+          borderTop: '1px solid var(--border-subtle)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 12px',
+          gap: 12,
+          fontSize: 11,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span className="badge amber" style={{ textTransform: 'uppercase' }}>
+            {studio.activeTool}
+          </span>
+          <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {TOOL_HINTS[studio.activeTool] ?? ''}
+          </span>
+
+          {isPaintTool && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 6 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Size:</span>
+              <input
+                type="range"
+                min={2}
+                max={90}
+                value={paintRadius}
+                onChange={(e) => setPaintRadius(Number(e.target.value))}
+                style={{ width: 68 }}
+              />
+              <span className="mono">{paintRadius}px</span>
+              {studio.activeTool === 'brush' && (
+                <input
+                  type="color"
+                  value={paintColor}
+                  onChange={(e) => setPaintColor(e.target.value)}
+                  style={{ width: 22, height: 18, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                />
+              )}
+            </div>
+          )}
+
+          {(studio.viewportPan[0] !== 0 || studio.viewportPan[1] !== 0) && (
+            <button
+              className="studio-btn ghost"
+              style={{ minHeight: 20, padding: '0 6px', fontSize: 10.5 }}
+              onClick={() => studio.setViewportPan([0, 0])}
+            >
+              Center Stage
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{ color: 'var(--text-muted)' }}>A/B Wipe:</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={studio.wipeSplit01}
+            disabled={!studio.snapshotFrame}
+            onChange={(e) => studio.setWipeSplit01(Number(e.target.value))}
+            style={{ width: 96 }}
+          />
+          <span className="mono" style={{ color: 'var(--text-secondary)', minWidth: 32 }}>
+            {studio.snapshotFrame ? `${Math.round(studio.wipeSplit01 * 100)}%` : 'Off'}
+          </span>
+        </div>
+      </div>
+    </section>
   );
 };

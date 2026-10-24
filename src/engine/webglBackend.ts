@@ -1,5 +1,11 @@
 // WebGL2 Hardware Viewport Shader Presenter + Automatic Canvas2D Fallback
 
+export interface ViewportSnapshotFrame {
+  pixels: Uint8ClampedArray;
+  width: number;
+  height: number;
+}
+
 const VERT_SRC = `#version 300 es
 in vec2 aPos;
 out vec2 vUv;
@@ -97,13 +103,21 @@ export class ViewportPresenter {
     w: number,
     h: number,
     checkerboard: boolean,
-    snapshotPixels?: Uint8ClampedArray | null,
+    snapshot?: ViewportSnapshotFrame | null,
     wipeSplit01 = 0,
   ): void {
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w;
       this.canvas.height = h;
     }
+
+    const validSnap = Boolean(
+      snapshot &&
+      snapshot.width > 0 &&
+      snapshot.height > 0 &&
+      snapshot.pixels.length === snapshot.width * snapshot.height * 4 &&
+      wipeSplit01 > 0.005,
+    );
 
     if (this.gl && this.prog && this.mainTex && this.snapTex) {
       const gl = this.gl;
@@ -114,34 +128,38 @@ export class ViewportPresenter {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
       gl.uniform1i(gl.getUniformLocation(this.prog, 'uMainTex'), 0);
 
-      const hasSnap = Boolean(snapshotPixels && snapshotPixels.length === pixels.length && wipeSplit01 > 0.005);
-      if (hasSnap && snapshotPixels) {
+      if (validSnap && snapshot) {
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, this.snapTex);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, snapshotPixels);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, snapshot.width, snapshot.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, snapshot.pixels);
       }
       gl.uniform1i(gl.getUniformLocation(this.prog, 'uSnapTex'), 1);
-      gl.uniform1i(gl.getUniformLocation(this.prog, 'uHasSnap'), hasSnap ? 1 : 0);
+      gl.uniform1i(gl.getUniformLocation(this.prog, 'uHasSnap'), validSnap ? 1 : 0);
       gl.uniform1f(gl.getUniformLocation(this.prog, 'uWipeSplit'), wipeSplit01);
       gl.uniform1i(gl.getUniformLocation(this.prog, 'uCheckerboard'), checkerboard ? 1 : 0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       return;
     }
 
-    // Software 2D Canvas fallback
+    // Software 2D Canvas fallback (supports cross-resolution snapshot UV sampling + checkerboard)
     const ctx2d = this.canvas.getContext('2d');
     if (!ctx2d) return;
     const img = ctx2d.createImageData(w, h);
     img.data.set(pixels);
-    if (snapshotPixels && snapshotPixels.length === pixels.length && wipeSplit01 > 0.005) {
+    if (validSnap && snapshot) {
       const splitX = Math.floor(w * wipeSplit01);
+      const sw = snapshot.width;
+      const sh = snapshot.height;
       for (let y = 0; y < h; y++) {
+        const sy = Math.min(sh - 1, Math.floor((y / h) * sh));
         for (let x = 0; x < splitX; x++) {
+          const sx = Math.min(sw - 1, Math.floor((x / w) * sw));
+          const so = (sy * sw + sx) * 4;
           const o = (y * w + x) * 4;
-          img.data[o] = snapshotPixels[o];
-          img.data[o + 1] = snapshotPixels[o + 1];
-          img.data[o + 2] = snapshotPixels[o + 2];
-          img.data[o + 3] = snapshotPixels[o + 3];
+          img.data[o] = snapshot.pixels[so];
+          img.data[o + 1] = snapshot.pixels[so + 1];
+          img.data[o + 2] = snapshot.pixels[so + 2];
+          img.data[o + 3] = snapshot.pixels[so + 3];
         }
       }
     }

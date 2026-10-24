@@ -179,14 +179,58 @@ export function renderCompositionFrame(
   let cacheKey = '';
   const shouldCache = options.useCache !== false && !options.roi && nestDepth === 0;
   if (shouldCache) {
-    let sig = `${comp.id}|${frameIndex}|${div}|${aov}|${chView}|${comp.backgroundColor}|${comp.motionBlurEnabled ? 1 : 0}`;
+    let sig = `${comp.id}|${frameIndex}|${div}|${aov}|${chView}|${comp.backgroundColor}|${comp.motionBlurEnabled ? 1 : 0}|${comp.shutterAngle}`;
     for (let i = 0; i < comp.layers.length; i++) {
       const l = comp.layers[i];
       const tr = l.transform;
-      sig += `;${l.id}:${l.visible ? 1 : 0}:${l.solo ? 1 : 0}:${l.blendMode}:${l.trackMatteMode}:${l.trackMatteLayerId ?? ''}:${l.solidColor ?? ''}:${tr.position.value[0]},${tr.position.value[1]},${tr.position.value[2]}:${tr.scale.value[0]},${tr.scale.value[1]}:${tr.rotationZ.value}:${tr.opacity.value}:${tr.position.expressionEnabled ? tr.position.expression : ''}:${tr.opacity.expressionEnabled ? tr.opacity.expression : ''}:${l.textData ? `${l.textData.text}|${l.textData.fontSize}|${l.textData.fillColor}` : ''}:${l.shapeContent ? `${l.shapeContent.kind}|${l.shapeContent.fillColor}|${l.shapeContent.strokeColor}|${l.shapeContent.strokeWidth}` : ''}:${l.masks.length}`;
+      const asset = l.assetId ? project?.assets.find((a) => a.id === l.assetId) : undefined;
+      sig += `;${l.id}:${l.visible ? 1 : 0}:${l.solo ? 1 : 0}:${l.threeD ? 1 : 0}:${l.motionBlur ? 1 : 0}:${l.inPoint}:${l.outPoint}:${l.startTime}:${l.stretchPct}:${l.parentId ?? ''}:${l.blendMode}:${l.trackMatteMode}:${l.trackMatteLayerId ?? ''}:${l.solidColor ?? ''}:${l.assetId ?? ''}:${asset?.missing ? 1 : 0}`;
+      sig += `:${tr.anchorPoint.value[0]},${tr.anchorPoint.value[1]},${tr.anchorPoint.value[2]},${tr.anchorPoint.keyframes.length}`;
+      sig += `:${tr.position.value[0]},${tr.position.value[1]},${tr.position.value[2]},${tr.position.keyframes.length}`;
+      sig += `:${tr.scale.value[0]},${tr.scale.value[1]},${tr.scale.value[2]},${tr.scale.keyframes.length}`;
+      sig += `:${tr.rotationX.value},${tr.rotationY.value},${tr.rotationZ.value},${tr.rotationZ.keyframes.length}`;
+      sig += `:${tr.opacity.value},${tr.opacity.keyframes.length}`;
+      sig += `:${tr.position.expressionEnabled ? tr.position.expression : ''}:${tr.opacity.expressionEnabled ? tr.opacity.expression : ''}`;
+      if (tr.position.animated && tr.position.keyframes.length > 0) {
+        for (let ki = 0; ki < tr.position.keyframes.length; ki++) {
+          const kf = tr.position.keyframes[ki];
+          sig += `@p${kf.time},${kf.value[0]},${kf.value[1]},${kf.interpolation}`;
+        }
+      }
+      if (tr.opacity.animated && tr.opacity.keyframes.length > 0) {
+        for (let ki = 0; ki < tr.opacity.keyframes.length; ki++) {
+          const kf = tr.opacity.keyframes[ki];
+          sig += `@o${kf.time},${kf.value},${kf.interpolation}`;
+        }
+      }
+      if (l.textData) {
+        sig += `:T(${l.textData.text}|${l.textData.fontSize}|${l.textData.tracking}|${l.textData.leading}|${l.textData.align}|${l.textData.fillColor}|${l.textData.strokeColor}|${l.textData.strokeWidth}|${l.textData.animators.length})`;
+      }
+      if (l.shapeContent) {
+        sig += `:S(${l.shapeContent.kind}|${l.shapeContent.width}|${l.shapeContent.height}|${l.shapeContent.fillColor}|${l.shapeContent.strokeColor}|${l.shapeContent.strokeWidth}|${l.shapeContent.operators.length})`;
+        for (let oi = 0; oi < l.shapeContent.operators.length; oi++) {
+          const op = l.shapeContent.operators[oi];
+          sig += `#${op.type}:${op.enabled ? 1 : 0}`;
+        }
+      }
+      if (l.cameraSettings) {
+        sig += `:C(${l.cameraSettings.focalLengthMm}|${l.cameraSettings.depthOfField ? 1 : 0}|${l.cameraSettings.focusDistance}|${l.cameraSettings.aperture})`;
+      }
+      if (l.lightSettings) {
+        sig += `:L(${l.lightSettings.lightType}|${l.lightSettings.color}|${l.lightSettings.intensity})`;
+      }
+      sig += `:P(${l.paintStrokes.length}):PP(${l.puppetPins.length}):R(${l.rotoMatteEnabled ? 1 : 0},${l.rotoForegroundSeeds?.length ?? 0},${l.rotoBackgroundSeeds?.length ?? 0}):M(${l.masks.length})`;
+      for (let psi = 0; psi < l.paintStrokes.length; psi++) {
+        const ps = l.paintStrokes[psi];
+        sig += `!${ps.tool}:${ps.color}:${ps.radius}:${ps.opacity}:${ps.points.length}`;
+      }
+      for (let pi = 0; pi < l.puppetPins.length; pi++) {
+        const pin = l.puppetPins[pi];
+        sig += `^${pin.currentX},${pin.currentY}`;
+      }
       for (let mi = 0; mi < l.masks.length; mi++) {
         const m = l.masks[mi];
-        sig += `~${m.mode}:${m.feather}:${m.opacity}:${m.expansion}:${m.vertices.length}`;
+        sig += `~${m.mode}:${m.inverted ? 1 : 0}:${m.feather}:${m.opacity}:${m.expansion}:${m.vertices.length}`;
       }
       for (let fi = 0; fi < l.effects.length; fi++) {
         const fx = l.effects[fi];

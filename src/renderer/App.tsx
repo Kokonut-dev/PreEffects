@@ -11,9 +11,11 @@ import { studioRamCache } from '../engine/compositor';
 const StudioLayoutInner: React.FC = () => {
   const studio = useStudio();
   const exprErrors = studio.lastFrameResult?.expressionErrors ?? [];
-  const [leftW, setLeftW] = useState(288);
+  const [leftW, setLeftW] = useState(282);
   const [rightW, setRightW] = useState(332);
-  const [bottomH, setBottomH] = useState(295);
+  const [bottomH, setBottomH] = useState(292);
+  const spot = studio.activeSpotlightRegion;
+  const minimal = studio.activeWorkspace === 'minimal';
 
   const startResize = (
     axis: 'left' | 'right' | 'bottom',
@@ -21,9 +23,9 @@ const StudioLayoutInner: React.FC = () => {
     initialSize: number,
   ) => {
     const onMove = (ev: PointerEvent) => {
-      if (axis === 'left') setLeftW(Math.max(210, Math.min(440, initialSize + (ev.clientX - startClient))));
-      else if (axis === 'right') setRightW(Math.max(250, Math.min(480, initialSize - (ev.clientX - startClient))));
-      else setBottomH(Math.max(170, Math.min(500, initialSize - (ev.clientY - startClient))));
+      if (axis === 'left') setLeftW(Math.max(210, Math.min(460, initialSize + (ev.clientX - startClient))));
+      else if (axis === 'right') setRightW(Math.max(255, Math.min(500, initialSize - (ev.clientX - startClient))));
+      else setBottomH(Math.max(170, Math.min(520, initialSize - (ev.clientY - startClient))));
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
@@ -35,7 +37,9 @@ const StudioLayoutInner: React.FC = () => {
 
   return (
     <div className="studio-shell" style={{ cursor: studio.whatsThisMode ? 'help' : undefined }}>
-      <TopChrome />
+      <div data-tour-active={spot === 'chrome' ? 'true' : undefined}>
+        <TopChrome />
+      </div>
 
       {/* Local Crash-Recovery Auto-Restore Banner */}
       {studio.hasRecoverableAutosave && (
@@ -43,7 +47,7 @@ const StudioLayoutInner: React.FC = () => {
           role="region"
           aria-label="Autosave Recovery Banner"
           style={{
-            background: 'rgba(56, 189, 248, 0.14)',
+            background: 'var(--bg-elevated)',
             borderBottom: '1px solid var(--accent-cyan)',
             padding: '4px 12px',
             display: 'flex',
@@ -53,13 +57,13 @@ const StudioLayoutInner: React.FC = () => {
           }}
         >
           <span>
-            ● Local Autosave snapshot detected in offline storage — restore previous session?
+            Local Autosave snapshot detected in offline storage — restore previous session?
           </span>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="studio-btn primary" style={{ padding: '1px 8px', fontSize: 10.5 }} onClick={studio.restoreRecoverableAutosave}>
+            <button className="studio-btn primary" style={{ minHeight: 22, padding: '1px 8px', fontSize: 10.5 }} onClick={studio.restoreRecoverableAutosave}>
               Restore Session
             </button>
-            <button className="studio-btn ghost" style={{ padding: '1px 8px', fontSize: 10.5 }} onClick={studio.dismissRecoverableAutosave}>
+            <button className="studio-btn ghost" style={{ minHeight: 22, padding: '1px 8px', fontSize: 10.5 }} onClick={studio.dismissRecoverableAutosave}>
               Dismiss
             </button>
           </div>
@@ -70,9 +74,9 @@ const StudioLayoutInner: React.FC = () => {
       {studio.whatsThisMode && (
         <div
           style={{
-            background: 'rgba(232, 155, 60, 0.18)',
+            background: 'var(--bg-selected)',
             borderBottom: '1px solid var(--accent-amber)',
-            padding: '3px 12px',
+            padding: '4px 12px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -80,20 +84,20 @@ const StudioLayoutInner: React.FC = () => {
           }}
         >
           <span>
-            <strong>What&apos;s This? Help Mode Active:</strong> Click any studio dock (Project, Viewport, Inspector, or Timeline) to inspect its reference guide.
+            <strong>Inspect Help Mode Active:</strong> Click any studio dock (Project, Viewport, Inspector, or Timeline) to inspect its reference card.
           </span>
-          <button className="studio-btn" style={{ padding: '1px 7px', fontSize: 10 }} onClick={() => studio.setWhatsThisMode(false)}>
+          <button className="studio-btn" style={{ minHeight: 22, padding: '1px 8px', fontSize: 10.5 }} onClick={() => studio.setWhatsThisMode(false)}>
             Exit (Shift+F1)
           </button>
         </div>
       )}
 
-      {/* Non-Modal Expression Error Banner (UX Improvement #4 over AE!) */}
+      {/* Non-Modal Expression Error Banner */}
       {exprErrors.length > 0 && (
         <div
           role="status"
           style={{
-            background: 'rgba(248, 113, 113, 0.16)',
+            background: 'var(--bg-elevated)',
             borderBottom: '1px solid var(--status-err)',
             padding: '4px 12px',
             display: 'flex',
@@ -104,7 +108,7 @@ const StudioLayoutInner: React.FC = () => {
           }}
         >
           <span>
-            ⚠ Expression Error on <strong>{exprErrors[0].layerName}</strong>: {exprErrors[0].message}
+            Expression Error on <strong>{exprErrors[0].layerName}</strong>: {exprErrors[0].message}
           </span>
           <span className="mono" style={{ fontSize: 10 }}>Non-blocking fallback active</span>
         </div>
@@ -112,10 +116,11 @@ const StudioLayoutInner: React.FC = () => {
 
       {/* Upper 3-Column Studio Dock with Resizable Splitters */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-        {studio.activeWorkspace !== 'minimal' && (
+        {!minimal && (
           <>
             <div
-              style={{ display: 'flex' }}
+              data-tour-active={spot === 'left-dock' ? 'true' : undefined}
+              style={{ display: 'flex', minHeight: 0 }}
               onClickCapture={(e) => {
                 if (studio.whatsThisMode) {
                   e.stopPropagation();
@@ -132,8 +137,10 @@ const StudioLayoutInner: React.FC = () => {
             />
           </>
         )}
+
         <div
-          style={{ flex: 1, display: 'flex', minWidth: 0 }}
+          data-tour-active={spot === 'viewport' ? 'true' : undefined}
+          style={{ flex: 1, display: 'flex', minWidth: 0, minHeight: 0 }}
           onClickCapture={(e) => {
             if (studio.whatsThisMode) {
               e.stopPropagation();
@@ -143,7 +150,8 @@ const StudioLayoutInner: React.FC = () => {
         >
           <ViewportPanel />
         </div>
-        {studio.activeWorkspace !== 'minimal' && (
+
+        {!minimal && (
           <>
             <div
               className="dock-splitter-v"
@@ -151,7 +159,8 @@ const StudioLayoutInner: React.FC = () => {
               onPointerDown={(e) => startResize('right', e.clientX, rightW)}
             />
             <div
-              style={{ display: 'flex' }}
+              data-tour-active={spot === 'right-dock' ? 'true' : undefined}
+              style={{ display: 'flex', minHeight: 0 }}
               onClickCapture={(e) => {
                 if (studio.whatsThisMode) {
                   e.stopPropagation();
@@ -165,50 +174,69 @@ const StudioLayoutInner: React.FC = () => {
         )}
       </div>
 
-      {/* Horizontal Dock Splitter */}
-      <div
-        className="dock-splitter-h"
-        title="Drag to resize Timeline / Node Graph Dock"
-        onPointerDown={(e) => startResize('bottom', e.clientY, bottomH)}
-      />
-
       {/* Bottom Dock: Timeline / Graph Editor / Node DAG / Render Queue */}
-      <div
-        onClickCapture={(e) => {
-          if (studio.whatsThisMode) {
-            e.stopPropagation();
-            studio.setActiveHelpId('panel.timeline');
-          }
-        }}
-      >
-        <BottomWorkspacePanel heightPx={bottomH} />
-      </div>
+      {!minimal && (
+        <>
+          <div
+            className="dock-splitter-h"
+            title="Drag to resize Timeline / Node Graph Dock"
+            onPointerDown={(e) => startResize('bottom', e.clientY, bottomH)}
+          />
+          <div
+            data-tour-active={spot === 'bottom-dock' ? 'true' : undefined}
+            onClickCapture={(e) => {
+              if (studio.whatsThisMode) {
+                e.stopPropagation();
+                studio.setActiveHelpId('panel.timeline');
+              }
+            }}
+          >
+            <BottomWorkspacePanel heightPx={bottomH} />
+          </div>
+        </>
+      )}
 
-      {/* Bottom Studio Telemetry Status Bar */}
+      {/* Minimalist Studio Telemetry Status Footer */}
       <footer
         style={{
-          height: 22,
+          height: 24,
           flexShrink: 0,
-          padding: '0 10px',
-          background: 'var(--bg-elevated)',
+          padding: '0 12px',
+          background: 'var(--bg-panel)',
           borderTop: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          fontSize: 10.5,
+          fontSize: 11,
           color: 'var(--text-secondary)',
         }}
       >
-        <span>{studio.statusMessage}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--status-ok)', fontWeight: 600 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--status-ok)' }} />
+            Offline Studio
+          </span>
+          <span style={{ color: 'var(--border-subtle)' }}>·</span>
+          <span style={{ color: 'var(--text-primary)' }}>{studio.statusMessage}</span>
+        </div>
         <div className="mono" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span>
-            Comp: {studio.activeComp?.width}×{studio.activeComp?.height} @ {studio.activeComp?.fps}fps
+            {studio.activeComp?.width}×{studio.activeComp?.height} @ {studio.activeComp?.fps}fps
           </span>
-          <span>
-            RAM Cache: {studioRamCache.getEntryCount()} frames ({(studioRamCache.getUsedBytes() / (1024 * 1024)).toFixed(1)} MB)
+          <span style={{ color: 'var(--text-muted)' }}>
+            RAM: {studioRamCache.getEntryCount()}f ({(studioRamCache.getUsedBytes() / (1024 * 1024)).toFixed(1)} MB)
           </span>
-          <span>{studio.project.bitDepth}-bit Float · {studio.project.workingColorSpace.toUpperCase()}</span>
-          <span style={{ color: 'var(--status-ok)' }}>● Offline Local Storage</span>
+          <span style={{ color: 'var(--text-muted)' }}>
+            {studio.project.bitDepth}-bit · {studio.project.workingColorSpace.toUpperCase()}
+          </span>
+          <button
+            className="studio-btn ghost"
+            style={{ minHeight: 18, padding: '0 6px', fontSize: 10.5 }}
+            onClick={() => studio.setActiveModal('guide')}
+            title="Open Interactive Studio Guide (F1)"
+          >
+            Guide <span className="kbd-chip" style={{ minHeight: 14, fontSize: 9 }}>F1</span>
+          </button>
         </div>
       </footer>
 
