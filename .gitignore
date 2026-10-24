@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Build & packaging outputs
+dist/
+dist-electron/
+release/
+out/
+coverage/
+
+# Cache & local runtime data
+.vite/
+.cache/
+*.tsbuildinfo
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Temporary crash/recovery & test scratch
+tmp/
+*.log

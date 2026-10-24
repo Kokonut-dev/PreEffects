@@ -1,0 +1,26 @@
+app-id: dev.preeffects.PreEffects
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: '24.08'
+command: preeffects
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=dri
+  - --filesystem=xdg-videos:rw
+  - --filesystem=xdg-pictures:rw
+  - --filesystem=xdg-documents:rw
+# Note: --share=network is intentionally omitted to guarantee 100% offline execution!
+modules:
+  - name: preeffects
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 preeffects.sh /app/bin/preeffects
+      - cp -r release/linux-unpacked/* /app/
+    sources:
+      - type: dir
+        path: ../..

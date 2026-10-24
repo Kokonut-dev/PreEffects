@@ -1,0 +1,91 @@
+{
+  "appId": "dev.preeffects.studio",
+  "productName": "PreEffects",
+  "copyright": "Copyright © 2026 PreEffects Contributors (MIT)",
+  "directories": {
+    "buildResources": "build",
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json",
+    "LICENSE"
+  ],
+  "mac": {
+    "category": "public.app-category.video",
+    "icon": "build/icons/icon.png",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "build/entitlements.mac.plist",
+    "entitlementsInherit": "build/entitlements.mac.plist",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "prex",
+        "name": "PreEffects Studio Project",
+        "role": "Editor"
+      }
+    ]
+  },
+  "win": {
+    "icon": "build/icons/icon.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "msi",
+        "arch": ["x64"]
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "prex",
+        "name": "PreEffects Studio Project"
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "linux": {
+    "category": "AudioVideo;Video;AudioVideoEditing;Graphics;",
+    "icon": "build/icons",
+    "synopsis": "Offline-First Motion Graphics & VFX Compositing Workstation",
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "deb",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "rpm",
+        "arch": ["x64"]
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "prex",
+        "name": "PreEffects Studio Project",
+        "mimeType": "application/x-preeffects-project"
+      }
+    ]
+  }
+}

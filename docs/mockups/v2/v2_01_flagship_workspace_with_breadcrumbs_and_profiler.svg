@@ -1,0 +1,183 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960">
+  <rect width="1600" height="960" fill="#0B0D11"/>
+  <!-- Top Menu with What's This [?] and Theme Toggle -->
+  <rect width="1600" height="28" fill="#13161C"/>
+  <rect x="10" y="5" width="18" height="18" rx="4" fill="#E89B3C"/>
+  <text x="15" y="18" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#0B0D11">P</text>
+  <text x="36" y="18" font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="bold" fill="#ECF0F7">PreEffects v2</text>
+  <text x="136" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C9D1E0">File</text><text x="178" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C9D1E0">Edit</text><text x="222" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C9D1E0">Composition</text><text x="316" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C9D1E0">Layer</text><text x="370" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C9D1E0">Effect</text><text x="426" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C9D1E0">Animation</text><text x="506" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C9D1E0">View</text><text x="554" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C9D1E0">Window</text><text x="620" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C9D1E0">Help</text>
+  <rect x="1060" y="4" width="290" height="20" rx="3" fill="#222834" stroke="#38BDF8"/>
+  <text x="1072" y="17" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#ECF0F7">/ Search All Commands, Effects &amp; Docs (Ctrl+K)</text>
+  <rect x="1360" y="4" width="84" height="20" rx="3" fill="#222834" stroke="#353E50"/>
+  <text x="1402" y="17" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" fill="#E89B3C">? What's This</text>
+  <text x="1460" y="18" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#22C55E">OFFLINE ● LOCAL</text>
+
+  <!-- Revised Breadcrumb Bar + Tools -->
+  <rect y="29" width="1600" height="36" fill="#1B2029"/>
+  
+    <rect x="10" y="35" width="43" height="24" rx="3" fill="#E89B3C" stroke="#F3AC54"/>
+    <text x="31.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="bold" fill="#0B0D11">V</text>
+  
+    <rect x="58" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="79.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">H</text>
+  
+    <rect x="106" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="127.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">Z</text>
+  
+    <rect x="154" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="175.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">W</text>
+  
+    <rect x="202" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="223.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">C</text>
+  
+    <rect x="250" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="271.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">Y</text>
+  
+    <rect x="298" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="319.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">Shape</text>
+  
+    <rect x="346" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="367.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">Pen</text>
+  
+    <rect x="394" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="415.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">Text</text>
+  
+    <rect x="442" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="463.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">Paint</text>
+  
+    <rect x="490" y="35" width="43" height="24" rx="3" fill="#222834" stroke="#353E50"/>
+    <text x="511.5" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="9.5" font-weight="normal" fill="#DCE2EE">Roto AI</text>
+  
+  <!-- UX-04 Inline Pre-Comp Breadcrumb Trail -->
+  <rect x="556" y="35" width="430" height="24" rx="3" fill="#13161C" stroke="#353E50"/>
+  <text x="568" y="51" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#9BA5B7">Breadcrumb:</text>
+  <text x="646" y="51" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#38BDF8">SHOT_040_MASTER</text>
+  <text x="760" y="51" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#667085">&gt;</text>
+  <text x="774" y="51" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#E89B3C">Precomp_Orbital_HUD</text>
+  <text x="908" y="51" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#667085">&gt; Ring_Rig</text>
+
+  <!-- Center Stage with Interactive Split Wipe Handle (UX-08) -->
+  <rect x="0" y="67" width="290" height="500" fill="#13161C"/>
+  <rect x="0" y="67" width="290" height="26" fill="#1B2029"/>
+  <text x="12" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#ECF0F7">Project &amp; Local Git Snapshots</text>
+  
+    <rect x="10" y="104" width="270" height="30" rx="3" fill="#1B2029" stroke="#2B3343"/>
+    <circle cx="22" cy="119" r="4" fill="#E89B3C"/>
+    <text x="34" y="123" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#ECF0F7">Commit v4: Tuned 32-bpc Glow (+2 diffs)</text>
+  
+    <rect x="10" y="142" width="270" height="30" rx="3" fill="#1B2029" stroke="#2B3343"/>
+    <circle cx="22" cy="157" r="4" fill="#38BDF8"/>
+    <text x="34" y="161" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#ECF0F7">Commit v3: Added AI Roto Foreground</text>
+  
+    <rect x="10" y="180" width="270" height="30" rx="3" fill="#1B2029" stroke="#2B3343"/>
+    <circle cx="22" cy="195" r="4" fill="#22C55E"/>
+    <text x="34" y="199" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#ECF0F7">Commit v2: Solved 35mm Camera Track</text>
+  
+    <rect x="10" y="218" width="270" height="30" rx="3" fill="#1B2029" stroke="#2B3343"/>
+    <circle cx="22" cy="233" r="4" fill="#A855F7"/>
+    <text x="34" y="237" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#ECF0F7">Commit v1: Initial Kinetic Title Rig</text>
+  
+  <text x="12" y="276" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#9BA5B7">OKABE-ITO ACCESSIBLE ASSET LABELS</text>
+  
+    <rect x="12" y="290" width="10" height="14" rx="2" fill="#E69F00"/>
+    <text x="30" y="301" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#ECF0F7">[Comp] SHOT_040_MASTER</text>
+  
+    <rect x="12" y="318" width="10" height="14" rx="2" fill="#56B4E9"/>
+    <text x="30" y="329" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#ECF0F7">[Pre]  Precomp_Orbital_HUD</text>
+  
+    <rect x="12" y="346" width="10" height="14" rx="2" fill="#009E73"/>
+    <text x="30" y="357" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#ECF0F7">[Data] telemetry_metrics.csv</text>
+  
+    <rect x="12" y="374" width="10" height="14" rx="2" fill="#F0E442"/>
+    <text x="30" y="385" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#ECF0F7">[3D]   orbital_dish.obj</text>
+  
+    <rect x="12" y="402" width="10" height="14" rx="2" fill="#CC79A7"/>
+    <text x="30" y="413" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#ECF0F7">[LUT]  Kodak_2383_ACES.cube</text>
+  
+
+  <!-- Center Viewer -->
+  <rect x="292" y="67" width="936" height="500" fill="#08090C"/>
+  <rect x="336" y="96" width="848" height="430" fill="#10192B" stroke="#2D3648"/>
+  <circle cx="760" cy="311" r="115" fill="none" stroke="#38BDF8" stroke-width="2" stroke-dasharray="16 6"/>
+  <circle cx="760" cy="311" r="82" fill="none" stroke="#E89B3C" stroke-width="2.5"/>
+  <text x="760" y="308" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="32" font-weight="bold" letter-spacing="5" fill="#FFFFFF">PREEFFECTS</text>
+  <text x="760" y="336" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="11.5" fill="#38BDF8">REVISED STUDIO UI v2 // A-B SNAPSHOT WIPE</text>
+  <!-- Draggable Wipe Divider -->
+  <line x1="690" y1="96" x2="690" y2="526" stroke="#E89B3C" stroke-width="2"/>
+  <circle cx="690" cy="311" r="13" fill="#E89B3C"/>
+  <text x="690" y="315" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="10" font-weight="bold" fill="#0B0D11">&lt;|&gt;</text>
+
+  <!-- Right Dock: 3-Tier Micro-Meter Effect Controls + Scopes -->
+  <rect x="1230" y="67" width="370" height="500" fill="#13161C"/>
+  <rect x="1230" y="67" width="370" height="26" fill="#1B2029"/>
+  <text x="1242" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#ECF0F7">Effect Controls (Inline GPU Cost Meter)</text>
+  
+    <rect x="1240" y="104" width="350" height="68" rx="4" fill="#1B2029" stroke="#2D3648"/>
+    <text x="1252" y="126" font-family="DejaVu Sans, sans-serif" font-size="11.5" font-weight="bold" fill="#ECF0F7">Optical Glow 32-bpc</text>
+    <rect x="1420" y="116" width="32.4" height="8" rx="2" fill="#22C55E"/>
+    <text x="1534" y="125" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#22C55E">1.2 ms</text>
+    <text x="1252" y="152" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9BA5B7">[Solo Cost]   Mix: 100.0%   Quality: High</text>
+  
+    <rect x="1240" y="182" width="350" height="68" rx="4" fill="#1B2029" stroke="#2D3648"/>
+    <text x="1252" y="204" font-family="DejaVu Sans, sans-serif" font-size="11.5" font-weight="bold" fill="#ECF0F7">Camera Lens Bokeh DoF</text>
+    <rect x="1420" y="194" width="70.8" height="8" rx="2" fill="#F59E0B"/>
+    <text x="1534" y="203" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#F59E0B">4.1 ms</text>
+    <text x="1252" y="230" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9BA5B7">[Solo Cost]   Mix: 100.0%   Quality: High</text>
+  
+    <rect x="1240" y="260" width="350" height="68" rx="4" fill="#1B2029" stroke="#2D3648"/>
+    <text x="1252" y="282" font-family="DejaVu Sans, sans-serif" font-size="11.5" font-weight="bold" fill="#ECF0F7">AI Temporal Denoise</text>
+    <rect x="1420" y="272" width="99" height="8" rx="2" fill="#EF4444"/>
+    <text x="1534" y="281" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#EF4444">6.8 ms</text>
+    <text x="1252" y="308" font-family="DejaVu Sans Mono, monospace" font-size="10" fill="#9BA5B7">[Solo Cost]   Mix: 100.0%   Quality: High</text>
+  
+
+  <!-- Bottom Timeline + Expression Snippet Chips (UX-05 & UX-09) -->
+  <rect y="569" width="1600" height="367" fill="#13161C"/>
+  <rect y="569" width="1600" height="30" fill="#1B2029"/>
+  <text x="14" y="588" font-family="DejaVu Sans Mono, monospace" font-size="13" font-weight="bold" fill="#E89B3C">00:00:03:42</text>
+  <text x="140" y="588" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#38BDF8">Expression Editor + 1-Click Snippet Chips:</text>
+  
+    <rect x="425" y="574" width="136" height="20" rx="10" fill="#222834" stroke="#38BDF8"/>
+    <text x="493" y="588" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#ECF0F7">+ Wiggle(3,20)</text>
+  
+    <rect x="569" y="574" width="136" height="20" rx="10" fill="#222834" stroke="#38BDF8"/>
+    <text x="637" y="588" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#ECF0F7">+ LoopOut("cycle")</text>
+  
+    <rect x="713" y="574" width="136" height="20" rx="10" fill="#222834" stroke="#38BDF8"/>
+    <text x="781" y="588" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#ECF0F7">+ Inertial Bounce</text>
+  
+    <rect x="857" y="574" width="136" height="20" rx="10" fill="#222834" stroke="#38BDF8"/>
+    <text x="925" y="588" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#ECF0F7">+ Audio React</text>
+  
+    <rect x="1001" y="574" width="136" height="20" rx="10" fill="#222834" stroke="#38BDF8"/>
+    <text x="1069" y="588" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#ECF0F7">+ Smart Relink</text>
+  
+  <rect x="14" y="610" width="1572" height="72" rx="4" fill="#0D1016" stroke="#2D3648"/>
+  <text x="28" y="634" font-family="DejaVu Sans Mono, monospace" font-size="11.5" fill="#38BDF8">const amp = effect("Master Rig")("Slider");</text>
+  <text x="28" y="654" font-family="DejaVu Sans Mono, monospace" font-size="11.5" fill="#ECF0F7">value + wiggle(2.5, amp) + [Math.sin(time * 4) * 18, 0];</text>
+  <rect x="28" y="662" width="540" height="16" rx="2" fill="#193324"/>
+  <text x="36" y="674" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#22C55E">✓ Compiled in 0.007ms • Result @ f222: [974.2, 536.8] • Loop Guard Active</text>
+
+  <!-- Multi-track preview -->
+  
+    <rect x="14" y="696" width="460" height="46" rx="3" fill="#181D26"/>
+    <text x="28" y="724" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#ECF0F7">1  [Txt] HERO_TITLE (Smart Rigged)</text>
+    <rect x="484" y="696" width="1102" height="46" rx="3" fill="#10141B"/>
+    <rect x="520" y="706" width="960" height="26" rx="3" fill="#253952" stroke="#38BDF8"/>
+  
+    <rect x="14" y="750" width="460" height="46" rx="3" fill="#181D26"/>
+    <text x="28" y="778" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#ECF0F7">2  [Shp] Orbital_HUD_Repeater</text>
+    <rect x="484" y="750" width="1102" height="46" rx="3" fill="#10141B"/>
+    <rect x="555" y="760" width="920" height="26" rx="3" fill="#253952" stroke="#38BDF8"/>
+  
+    <rect x="14" y="804" width="460" height="46" rx="3" fill="#181D26"/>
+    <text x="28" y="832" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#ECF0F7">3  [Matte] AI_Roto_Subject</text>
+    <rect x="484" y="804" width="1102" height="46" rx="3" fill="#10141B"/>
+    <rect x="590" y="814" width="880" height="26" rx="3" fill="#253952" stroke="#38BDF8"/>
+  
+    <rect x="14" y="858" width="460" height="46" rx="3" fill="#181D26"/>
+    <text x="28" y="886" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#ECF0F7">4  [Aud] sub_pulse_124bpm.wav</text>
+    <rect x="484" y="858" width="1102" height="46" rx="3" fill="#10141B"/>
+    <rect x="625" y="868" width="840" height="26" rx="3" fill="#253952" stroke="#38BDF8"/>
+  
+</svg>

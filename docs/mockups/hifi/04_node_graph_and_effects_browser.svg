@@ -1,0 +1,240 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960">
+  
+  <!-- App Frame Background -->
+  <rect x="0" y="0" width="1600" height="960" fill="#0C0E12"/>
+  <!-- Menu Bar -->
+  <rect x="0" y="0" width="1600" height="28" fill="#14171D"/>
+  <rect x="10" y="5" width="18" height="18" rx="4" fill="#E89B3C"/>
+  <text x="15" y="18" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#0C0E12">P</text>
+  <text x="36" y="18" font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="bold" fill="#E6EAF2">PreEffects</text>
+  <text x="118" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">File</text><text x="162" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Edit</text><text x="208" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Composition</text><text x="304" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Layer</text><text x="358" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Effect</text><text x="414" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Animation</text><text x="494" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">View</text><text x="544" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Window</text><text x="612" y="18" font-family="DejaVu Sans, sans-serif" font-size="11.5" fill="#C4CBD9">Help</text>
+  <!-- Command Palette Search Pill -->
+  <rect x="1150" y="4" width="290" height="20" rx="3" fill="#202530" stroke="#323A4A" stroke-width="1"/>
+  <text x="1162" y="17" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#8C96AA">Search effects, commands, assets... (Ctrl+K)</text>
+  <text x="1460" y="18" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#22C55E">OFFLINE ● LOCAL</text>
+  <line x1="0" y1="28.5" x2="1600" y2="28.5" stroke="#262B36"/>
+
+  <!-- Tool & Workspace Bar -->
+  <rect x="0" y="29" width="1600" height="36" fill="#181C24"/>
+  
+      <rect x="10" y="35" width="38" height="24" rx="3" fill="#E89B3C" stroke="#F5B562"/>
+      <text x="29" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="bold" fill="#0C0E12">V</text>
+    
+      <rect x="54" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="73" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">H</text>
+    
+      <rect x="98" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="117" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Z</text>
+    
+      <rect x="142" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="161" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">W</text>
+    
+      <rect x="186" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="205" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">C</text>
+    
+      <rect x="230" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="249" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Y</text>
+    
+      <rect x="274" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="293" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Rect</text>
+    
+      <rect x="318" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="337" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Pen</text>
+    
+      <rect x="362" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="381" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Text</text>
+    
+      <rect x="406" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="425" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Brush</text>
+    
+      <rect x="450" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="469" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Clone</text>
+    
+      <rect x="494" y="35" width="38" height="24" rx="3" fill="#222733" stroke="#303746"/>
+      <text x="513" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" font-weight="normal" fill="#D0D6E2">Roto</text>
+    
+  <line x1="548" y1="35" x2="548" y2="59" stroke="#2D3443"/>
+  <rect x="560" y="35" width="58" height="24" rx="3" fill="#222733" stroke="#38BDF8"/>
+  <text x="589" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" fill="#38BDF8">Snap ON</text>
+  <rect x="624" y="35" width="64" height="24" rx="3" fill="#222733" stroke="#303746"/>
+  <text x="656" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10" fill="#AAB3C4">3D Gizmo</text>
+
+  <!-- Workspaces Right -->
+  
+      <rect x="1040" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1082" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Default</text>
+    
+      <rect x="1130" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1172" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Animation</text>
+    
+      <rect x="1220" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1262" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Compositing</text>
+    
+      <rect x="1310" y="35" width="84" height="24" rx="3" fill="#253142" stroke="#38BDF8"/>
+      <text x="1352" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#E6EAF2">Node Graph</text>
+    
+      <rect x="1400" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1442" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Typography</text>
+    
+      <rect x="1490" y="35" width="84" height="24" rx="3" fill="#1E232D" stroke="#2C3342"/>
+      <text x="1532" y="51" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="normal" fill="#8E98AC">Minimal</text>
+    
+  <line x1="0" y1="65.5" x2="1600" y2="65.5" stroke="#0C0E12"/>
+  
+  <!-- Left: Effects & Presets Browser (19 Categories) -->
+  <rect x="0" y="67" width="320" height="868" fill="#14171D"/>
+  <rect x="0" y="67" width="320" height="26" fill="#1B1F27"/>
+  <rect x="0" y="67" width="150" height="2" fill="#E89B3C"/>
+  <text x="12" y="84" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#E6EAF2">Effects &amp; Smart Presets</text>
+  <rect x="10" y="101" width="300" height="24" rx="3" fill="#1F2430" stroke="#38BDF8"/>
+  <text x="20" y="117" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#E6EAF2">/ Search 186 Effects &amp; AI Tools...</text>
+  
+    <text x="16" y="150" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">★ Smart Adaptive Presets (14)</text>
+  
+    <text x="16" y="186" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▾ PreEffects Local AI &amp; Procedural (7)</text>
+  
+    <text x="16" y="222" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#38BDF8">    AI Roto Matting (Offline)</text>
+  
+    <text x="16" y="258" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#38BDF8">    AI Super-Scale 2x/4x</text>
+  
+    <text x="16" y="294" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#38BDF8">    AI Optical-Flow Frame Tween</text>
+  
+    <text x="16" y="330" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#38BDF8">    Procedural Reaction-Diffusion</text>
+  
+    <text x="16" y="366" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Blur &amp; Sharpen (11)</text>
+  
+    <text x="16" y="402" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Colour Correction (19)</text>
+  
+    <text x="16" y="438" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Distort &amp; Warp Stabilizer (22)</text>
+  
+    <text x="16" y="474" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Generate &amp; Audio Reactive (21)</text>
+  
+    <text x="16" y="510" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Keying &amp; Spill Suppressor (9)</text>
+  
+    <text x="16" y="546" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Matte &amp; Channel Ops (10)</text>
+  
+    <text x="16" y="582" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Noise &amp; Fractal Grain (7)</text>
+  
+    <text x="16" y="618" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Perspective &amp; 3D Tracker (6)</text>
+  
+    <text x="16" y="654" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Simulation &amp; Particles (10)</text>
+  
+    <text x="16" y="690" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Stylize &amp; Optical Glow (15)</text>
+  
+    <text x="16" y="726" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Time, Transition &amp; Utility (17)</text>
+  
+    <text x="16" y="762" font-family="DejaVu Sans, sans-serif" font-size="11" fill="#DCE2EE">▸ Audio DSP &amp; Immersive VR (19)</text>
+  
+
+  <!-- Top Right Mini Viewer -->
+  
+  <defs>
+    <linearGradient id="stageGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1320"/>
+      <stop offset="55%" stop-color="#131E32"/>
+      <stop offset="100%" stop-color="#1E162B"/>
+    </linearGradient>
+    <radialGradient id="amberGlow" cx="50%" cy="50%" r="48%">
+      <stop offset="0%" stop-color="#E89B3C" stop-opacity="0.34"/>
+      <stop offset="65%" stop-color="#38BDF8" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#0B1320" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Viewer Dark Surround -->
+  <rect x="322" y="67" width="1278" height="360" fill="#090A0D"/>
+  <!-- 16:9 Active Frame -->
+  <rect x="368" y="91" width="1186" height="292" fill="url(#stageGrad)" stroke="#2E3646"/>
+  <rect x="368" y="91" width="1186" height="292" fill="url(#amberGlow)"/>
+  <!-- Perspective Grid Lines -->
+  <line x1="691" y1="91" x2="526" y2="383" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="781" y1="91" x2="671" y2="383" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="871" y1="91" x2="816" y2="383" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="961" y1="91" x2="961" y2="383" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="1051" y1="91" x2="1106" y2="383" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="1141" y1="91" x2="1251" y2="383" stroke="#38BDF8" stroke-opacity="0.11"/><line x1="1231" y1="91" x2="1396" y2="383" stroke="#38BDF8" stroke-opacity="0.11"/>
+  <!-- Safe Zone Guides -->
+  <rect x="404" y="115" width="1114" height="244" fill="none" stroke="#38BDF8" stroke-opacity="0.24" stroke-dasharray="4 4"/>
+  <!-- Animated HUD Rings -->
+  <circle cx="961" cy="237" r="118" fill="none" stroke="#38BDF8" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="18 8"/>
+  <circle cx="961" cy="237" r="88" fill="none" stroke="#E89B3C" stroke-opacity="0.7" stroke-width="2"/>
+  <!-- Motion Path Spatial Bezier Curve -->
+  <path d="M 751 305 C 851 152, 1056 342, 1176 209" fill="none" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="3 4"/>
+  <rect x="747" y="301" width="8" height="8" transform="rotate(45 751 305)" fill="#38BDF8"/>
+  <rect x="1172" y="205" width="8" height="8" transform="rotate(45 1176 209)" fill="#38BDF8"/>
+  <!-- Hero Kinetic Typography -->
+  <rect x="756" y="195" width="410" height="84" fill="none" stroke="#E89B3C" stroke-width="1.2"/>
+  <rect x="753" y="192" width="6" height="6" fill="#E89B3C"/><rect x="1163" y="192" width="6" height="6" fill="#E89B3C"/><rect x="753" y="276" width="6" height="6" fill="#E89B3C"/><rect x="1163" y="276" width="6" height="6" fill="#E89B3C"/>
+  <text x="961" y="235" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="30" font-weight="bold" letter-spacing="5" fill="#F8FAFC">PREEFFECTS</text>
+  <text x="961" y="263" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="11.5" fill="#38BDF8">BIDIRECTIONAL LAYER TO NODE COMPOSITOR</text>
+  <!-- Anchor Crosshair -->
+  <circle cx="961" cy="237" r="6" fill="none" stroke="#E89B3C" stroke-width="1.5"/>
+  <line x1="951" y1="237" x2="971" y2="237" stroke="#E89B3C"/>
+  <line x1="961" y1="227" x2="961" y2="247" stroke="#E89B3C"/>
+  <!-- Viewer Footer Bar -->
+  <rect x="322" y="399" width="1278" height="28" fill="#161A22"/>
+  <text x="334" y="417" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#E6EAF2">75% ▾   Full ▾   RGB ▾   Active Camera (35mm) ▾   ROI   Snapshot A/B   32-bpc Linear</text>
+  <text x="1445" y="417" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#E89B3C">NODE_DAG_SYNCED</text>
+  
+
+  <!-- Bottom Right Node Graph Canvas -->
+  <rect x="322" y="429" width="1278" height="506" fill="#0F1218"/>
+  <rect x="322" y="429" width="1278" height="28" fill="#1B1F27"/>
+  <text x="336" y="447" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="bold" fill="#38BDF8">Bidirectional Node Graph — Live Synced with Timeline Stack (6 Nodes, 1 Parallel Bloom Branch)</text>
+  <!-- Grid Dots -->
+  <circle cx="360" cy="480" r="1" fill="#283040"/><circle cx="360" cy="530" r="1" fill="#283040"/><circle cx="360" cy="580" r="1" fill="#283040"/><circle cx="360" cy="630" r="1" fill="#283040"/><circle cx="360" cy="680" r="1" fill="#283040"/><circle cx="360" cy="730" r="1" fill="#283040"/><circle cx="360" cy="780" r="1" fill="#283040"/><circle cx="360" cy="830" r="1" fill="#283040"/><circle cx="360" cy="880" r="1" fill="#283040"/><circle cx="430" cy="480" r="1" fill="#283040"/><circle cx="430" cy="530" r="1" fill="#283040"/><circle cx="430" cy="580" r="1" fill="#283040"/><circle cx="430" cy="630" r="1" fill="#283040"/><circle cx="430" cy="680" r="1" fill="#283040"/><circle cx="430" cy="730" r="1" fill="#283040"/><circle cx="430" cy="780" r="1" fill="#283040"/><circle cx="430" cy="830" r="1" fill="#283040"/><circle cx="430" cy="880" r="1" fill="#283040"/><circle cx="500" cy="480" r="1" fill="#283040"/><circle cx="500" cy="530" r="1" fill="#283040"/><circle cx="500" cy="580" r="1" fill="#283040"/><circle cx="500" cy="630" r="1" fill="#283040"/><circle cx="500" cy="680" r="1" fill="#283040"/><circle cx="500" cy="730" r="1" fill="#283040"/><circle cx="500" cy="780" r="1" fill="#283040"/><circle cx="500" cy="830" r="1" fill="#283040"/><circle cx="500" cy="880" r="1" fill="#283040"/><circle cx="570" cy="480" r="1" fill="#283040"/><circle cx="570" cy="530" r="1" fill="#283040"/><circle cx="570" cy="580" r="1" fill="#283040"/><circle cx="570" cy="630" r="1" fill="#283040"/><circle cx="570" cy="680" r="1" fill="#283040"/><circle cx="570" cy="730" r="1" fill="#283040"/><circle cx="570" cy="780" r="1" fill="#283040"/><circle cx="570" cy="830" r="1" fill="#283040"/><circle cx="570" cy="880" r="1" fill="#283040"/><circle cx="640" cy="480" r="1" fill="#283040"/><circle cx="640" cy="530" r="1" fill="#283040"/><circle cx="640" cy="580" r="1" fill="#283040"/><circle cx="640" cy="630" r="1" fill="#283040"/><circle cx="640" cy="680" r="1" fill="#283040"/><circle cx="640" cy="730" r="1" fill="#283040"/><circle cx="640" cy="780" r="1" fill="#283040"/><circle cx="640" cy="830" r="1" fill="#283040"/><circle cx="640" cy="880" r="1" fill="#283040"/><circle cx="710" cy="480" r="1" fill="#283040"/><circle cx="710" cy="530" r="1" fill="#283040"/><circle cx="710" cy="580" r="1" fill="#283040"/><circle cx="710" cy="630" r="1" fill="#283040"/><circle cx="710" cy="680" r="1" fill="#283040"/><circle cx="710" cy="730" r="1" fill="#283040"/><circle cx="710" cy="780" r="1" fill="#283040"/><circle cx="710" cy="830" r="1" fill="#283040"/><circle cx="710" cy="880" r="1" fill="#283040"/><circle cx="780" cy="480" r="1" fill="#283040"/><circle cx="780" cy="530" r="1" fill="#283040"/><circle cx="780" cy="580" r="1" fill="#283040"/><circle cx="780" cy="630" r="1" fill="#283040"/><circle cx="780" cy="680" r="1" fill="#283040"/><circle cx="780" cy="730" r="1" fill="#283040"/><circle cx="780" cy="780" r="1" fill="#283040"/><circle cx="780" cy="830" r="1" fill="#283040"/><circle cx="780" cy="880" r="1" fill="#283040"/><circle cx="850" cy="480" r="1" fill="#283040"/><circle cx="850" cy="530" r="1" fill="#283040"/><circle cx="850" cy="580" r="1" fill="#283040"/><circle cx="850" cy="630" r="1" fill="#283040"/><circle cx="850" cy="680" r="1" fill="#283040"/><circle cx="850" cy="730" r="1" fill="#283040"/><circle cx="850" cy="780" r="1" fill="#283040"/><circle cx="850" cy="830" r="1" fill="#283040"/><circle cx="850" cy="880" r="1" fill="#283040"/><circle cx="920" cy="480" r="1" fill="#283040"/><circle cx="920" cy="530" r="1" fill="#283040"/><circle cx="920" cy="580" r="1" fill="#283040"/><circle cx="920" cy="630" r="1" fill="#283040"/><circle cx="920" cy="680" r="1" fill="#283040"/><circle cx="920" cy="730" r="1" fill="#283040"/><circle cx="920" cy="780" r="1" fill="#283040"/><circle cx="920" cy="830" r="1" fill="#283040"/><circle cx="920" cy="880" r="1" fill="#283040"/><circle cx="990" cy="480" r="1" fill="#283040"/><circle cx="990" cy="530" r="1" fill="#283040"/><circle cx="990" cy="580" r="1" fill="#283040"/><circle cx="990" cy="630" r="1" fill="#283040"/><circle cx="990" cy="680" r="1" fill="#283040"/><circle cx="990" cy="730" r="1" fill="#283040"/><circle cx="990" cy="780" r="1" fill="#283040"/><circle cx="990" cy="830" r="1" fill="#283040"/><circle cx="990" cy="880" r="1" fill="#283040"/><circle cx="1060" cy="480" r="1" fill="#283040"/><circle cx="1060" cy="530" r="1" fill="#283040"/><circle cx="1060" cy="580" r="1" fill="#283040"/><circle cx="1060" cy="630" r="1" fill="#283040"/><circle cx="1060" cy="680" r="1" fill="#283040"/><circle cx="1060" cy="730" r="1" fill="#283040"/><circle cx="1060" cy="780" r="1" fill="#283040"/><circle cx="1060" cy="830" r="1" fill="#283040"/><circle cx="1060" cy="880" r="1" fill="#283040"/><circle cx="1130" cy="480" r="1" fill="#283040"/><circle cx="1130" cy="530" r="1" fill="#283040"/><circle cx="1130" cy="580" r="1" fill="#283040"/><circle cx="1130" cy="630" r="1" fill="#283040"/><circle cx="1130" cy="680" r="1" fill="#283040"/><circle cx="1130" cy="730" r="1" fill="#283040"/><circle cx="1130" cy="780" r="1" fill="#283040"/><circle cx="1130" cy="830" r="1" fill="#283040"/><circle cx="1130" cy="880" r="1" fill="#283040"/><circle cx="1200" cy="480" r="1" fill="#283040"/><circle cx="1200" cy="530" r="1" fill="#283040"/><circle cx="1200" cy="580" r="1" fill="#283040"/><circle cx="1200" cy="630" r="1" fill="#283040"/><circle cx="1200" cy="680" r="1" fill="#283040"/><circle cx="1200" cy="730" r="1" fill="#283040"/><circle cx="1200" cy="780" r="1" fill="#283040"/><circle cx="1200" cy="830" r="1" fill="#283040"/><circle cx="1200" cy="880" r="1" fill="#283040"/><circle cx="1270" cy="480" r="1" fill="#283040"/><circle cx="1270" cy="530" r="1" fill="#283040"/><circle cx="1270" cy="580" r="1" fill="#283040"/><circle cx="1270" cy="630" r="1" fill="#283040"/><circle cx="1270" cy="680" r="1" fill="#283040"/><circle cx="1270" cy="730" r="1" fill="#283040"/><circle cx="1270" cy="780" r="1" fill="#283040"/><circle cx="1270" cy="830" r="1" fill="#283040"/><circle cx="1270" cy="880" r="1" fill="#283040"/><circle cx="1340" cy="480" r="1" fill="#283040"/><circle cx="1340" cy="530" r="1" fill="#283040"/><circle cx="1340" cy="580" r="1" fill="#283040"/><circle cx="1340" cy="630" r="1" fill="#283040"/><circle cx="1340" cy="680" r="1" fill="#283040"/><circle cx="1340" cy="730" r="1" fill="#283040"/><circle cx="1340" cy="780" r="1" fill="#283040"/><circle cx="1340" cy="830" r="1" fill="#283040"/><circle cx="1340" cy="880" r="1" fill="#283040"/><circle cx="1410" cy="480" r="1" fill="#283040"/><circle cx="1410" cy="530" r="1" fill="#283040"/><circle cx="1410" cy="580" r="1" fill="#283040"/><circle cx="1410" cy="630" r="1" fill="#283040"/><circle cx="1410" cy="680" r="1" fill="#283040"/><circle cx="1410" cy="730" r="1" fill="#283040"/><circle cx="1410" cy="780" r="1" fill="#283040"/><circle cx="1410" cy="830" r="1" fill="#283040"/><circle cx="1410" cy="880" r="1" fill="#283040"/><circle cx="1480" cy="480" r="1" fill="#283040"/><circle cx="1480" cy="530" r="1" fill="#283040"/><circle cx="1480" cy="580" r="1" fill="#283040"/><circle cx="1480" cy="630" r="1" fill="#283040"/><circle cx="1480" cy="680" r="1" fill="#283040"/><circle cx="1480" cy="730" r="1" fill="#283040"/><circle cx="1480" cy="780" r="1" fill="#283040"/><circle cx="1480" cy="830" r="1" fill="#283040"/><circle cx="1480" cy="880" r="1" fill="#283040"/><circle cx="1550" cy="480" r="1" fill="#283040"/><circle cx="1550" cy="530" r="1" fill="#283040"/><circle cx="1550" cy="580" r="1" fill="#283040"/><circle cx="1550" cy="630" r="1" fill="#283040"/><circle cx="1550" cy="680" r="1" fill="#283040"/><circle cx="1550" cy="730" r="1" fill="#283040"/><circle cx="1550" cy="780" r="1" fill="#283040"/><circle cx="1550" cy="830" r="1" fill="#283040"/><circle cx="1550" cy="880" r="1" fill="#283040"/>
+  <!-- Bezier Noodles -->
+  <path d="M 530 620 C 590 620, 590 555, 650 555" fill="none" stroke="#38BDF8" stroke-width="2.2"/>
+  <path d="M 530 620 C 590 620, 590 695, 650 695" fill="none" stroke="#E89B3C" stroke-width="2.2"/>
+  <path d="M 830 555 C 900 555, 900 625, 960 625" fill="none" stroke="#38BDF8" stroke-width="2.2"/>
+  <path d="M 830 695 C 900 695, 900 640, 960 640" fill="none" stroke="#E89B3C" stroke-width="2.2"/>
+  <path d="M 530 795 C 740 795, 760 655, 960 655" fill="none" stroke="#4ADE80" stroke-width="2.2"/>
+  <path d="M 1140 635 C 1210 635, 1210 635, 1280 635" fill="none" stroke="#F8FAFC" stroke-width="2.5"/>
+
+  <!-- Nodes -->
+  
+    <rect x="360" y="590" width="172" height="62" rx="5" fill="#1B202B" stroke="#38BDF8" stroke-width="1.6"/>
+    <rect x="360" y="590" width="172" height="18" rx="4" fill="#38BDF8" fill-opacity="0.24"/>
+    <text x="370" y="603" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#F8FAFC">Read: HERO_TITLE</text>
+    <text x="370" y="628" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#9AA3B5">Text + Animator Rig</text>
+    <circle cx="360" cy="621" r="5" fill="#38BDF8"/>
+    <circle cx="532" cy="621" r="5" fill="#38BDF8"/>
+  
+    <rect x="360" y="765" width="172" height="62" rx="5" fill="#1B202B" stroke="#4ADE80" stroke-width="1.6"/>
+    <rect x="360" y="765" width="172" height="18" rx="4" fill="#4ADE80" fill-opacity="0.24"/>
+    <text x="370" y="778" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#F8FAFC">Read: Nebula_4K.mov</text>
+    <text x="370" y="803" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#9AA3B5">ProRes 4444 • 60fps</text>
+    <circle cx="360" cy="796" r="5" fill="#4ADE80"/>
+    <circle cx="532" cy="796" r="5" fill="#4ADE80"/>
+  
+    <rect x="650" y="525" width="172" height="62" rx="5" fill="#1B202B" stroke="#38BDF8" stroke-width="1.6"/>
+    <rect x="650" y="525" width="172" height="18" rx="4" fill="#38BDF8" fill-opacity="0.24"/>
+    <text x="660" y="538" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#F8FAFC">Unsharp + Transform</text>
+    <text x="660" y="563" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#9AA3B5">Amount 85% • 0.5ms</text>
+    <circle cx="650" cy="556" r="5" fill="#38BDF8"/>
+    <circle cx="822" cy="556" r="5" fill="#38BDF8"/>
+  
+    <rect x="650" y="665" width="172" height="62" rx="5" fill="#1B202B" stroke="#E89B3C" stroke-width="1.6"/>
+    <rect x="650" y="665" width="172" height="18" rx="4" fill="#E89B3C" fill-opacity="0.24"/>
+    <text x="660" y="678" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#F8FAFC">Optical Glow Branch</text>
+    <text x="660" y="703" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#9AA3B5">32-bpc Superwhite • 1.4ms</text>
+    <circle cx="650" cy="696" r="5" fill="#E89B3C"/>
+    <circle cx="822" cy="696" r="5" fill="#E89B3C"/>
+  
+    <rect x="960" y="600" width="172" height="62" rx="5" fill="#1B202B" stroke="#A855F7" stroke-width="1.6"/>
+    <rect x="960" y="600" width="172" height="18" rx="4" fill="#A855F7" fill-opacity="0.24"/>
+    <text x="970" y="613" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#F8FAFC">Merge (Screen + Over)</text>
+    <text x="970" y="638" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#9AA3B5">3 Inputs • Alpha Premul</text>
+    <circle cx="960" cy="631" r="5" fill="#A855F7"/>
+    <circle cx="1132" cy="631" r="5" fill="#A855F7"/>
+  
+    <rect x="1280" y="600" width="172" height="62" rx="5" fill="#1B202B" stroke="#22C55E" stroke-width="1.6"/>
+    <rect x="1280" y="600" width="172" height="18" rx="4" fill="#22C55E" fill-opacity="0.24"/>
+    <text x="1290" y="613" font-family="DejaVu Sans, sans-serif" font-size="10.5" font-weight="bold" fill="#F8FAFC">Comp Output (ACEScg)</text>
+    <text x="1290" y="638" font-family="DejaVu Sans Mono, monospace" font-size="9.5" fill="#9AA3B5">1920×1080 • 60fps</text>
+    <circle cx="1280" cy="631" r="5" fill="#22C55E"/>
+    <circle cx="1452" cy="631" r="5" fill="#22C55E"/>
+  
+  
+  <rect x="0" y="936" width="1600" height="24" fill="#12151B"/>
+  <line x1="0" y1="936.5" x2="1600" y2="936.5" stroke="#262B36"/>
+  <text x="12" y="952" font-family="DejaVu Sans, sans-serif" font-size="10.5" fill="#9AA3B5">Selection Tool (V) — Drag handles to transform layer; Shift constrains proportions</text>
+  <text x="760" y="952" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#D0D6E2">X: 0960  Y: 0540   RGBA(32f): 0.94, 0.61, 0.24, 1.00</text>
+  <text x="1190" y="952" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#22C55E">Frame Time: 4.8ms (60.0 fps)</text>
+  <text x="1400" y="952" font-family="DejaVu Sans Mono, monospace" font-size="10.5" fill="#38BDF8">RAM Cache: 412/1024 MB  WebGL2</text>
+  
+</svg>

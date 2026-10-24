@@ -1,0 +1,98 @@
+name: Release — Cross-Platform Desktop Installers
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-macos:
+    name: Package macOS (.dmg & .zip)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci || npm install
+      - run: npm test
+      - run: npm run build
+      - name: Package macOS Universal Binary
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run package:mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PreEffects-macOS
+          path: |
+            release/*.dmg
+            release/*.zip
+
+  package-windows:
+    name: Package Windows (.exe & .msi)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci || npm install
+      - run: npm test
+      - run: npm run build
+      - name: Package Windows NSIS & MSI Installers
+        run: npm run package:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PreEffects-Windows
+          path: |
+            release/*.exe
+            release/*.msi
+
+  package-linux:
+    name: Package Linux (.AppImage, .deb, .rpm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Linux packaging tools
+        run: sudo apt-get update && sudo apt-get install -y rpm libfuse2
+      - run: npm ci || npm install
+      - run: npm test
+      - run: npm run build
+      - name: Package Linux Targets
+        run: npm run package:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PreEffects-Linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+
+  publish-release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [package-macos, package-windows, package-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FILES=$(find release-artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \))
+          gh release create "${{ github.ref_name }}" $FILES \
+            --title "PreEffects ${{ github.ref_name }}" \
+            --generate-notes

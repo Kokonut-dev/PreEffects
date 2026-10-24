@@ -1,0 +1,48 @@
+{
+  "name": "preeffects",
+  "productName": "PreEffects",
+  "version": "1.0.0",
+  "description": "Professional, offline-first motion graphics and visual effects desktop workstation for macOS, Windows, and Linux.",
+  "license": "MIT",
+  "author": "PreEffects Contributors",
+  "homepage": "https://github.com/Kokonut-dev/PreEffects",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kokonut-dev/PreEffects.git"
+  },
+  "main": "dist-electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "dev:electron": "node scripts/build-electron.mjs && electron .",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build && node scripts/build-electron.mjs",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "test": "vitest run tests/unit tests/integration",
+    "test:perf": "vitest run tests/performance",
+    "test:all": "vitest run",
+    "render:assets": "node scripts/render-svg-assets.mjs",
+    "package:mac": "npm run build && electron-builder --mac dmg zip --config build/electron-builder.json",
+    "package:win": "npm run build && electron-builder --win nsis msi --config build/electron-builder.json",
+    "package:linux": "npm run build && electron-builder --linux AppImage deb rpm --config build/electron-builder.json"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  }
+}

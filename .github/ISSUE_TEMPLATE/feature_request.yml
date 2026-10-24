@@ -1,0 +1,27 @@
+name: Feature or Effect Proposal
+description: Propose a new compositing capability, built-in effect, workflow improvement, or plugin hook
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: Subsystem
+      options:
+        - Timeline & Composition
+        - Layer Engine (Shape / Text / 3D / Audio)
+        - Effects & Shaders
+        - Keyframing & Graph Editor
+        - Expressions & Scripting
+        - Node Graph Compositor
+        - Masks, Roto & Tracking
+        - Render Queue & Codecs
+        - UI / Workspaces / Accessibility
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem & Proposed Solution
+    validations:
+      required: true
