@@ -34,6 +34,7 @@ export const ViewportPanel: React.FC = () => {
     mode: 'move' | 'pan' | 'rotate' | 'camera' | 'anchor' | 'paint' | 'puppet-drag';
     layerId?: string;
     pinId?: string;
+    strokeId?: string;
     startClientX: number;
     startClientY: number;
     origA: number;
@@ -146,15 +147,43 @@ export const ViewportPanel: React.FC = () => {
     e.currentTarget.setPointerCapture(e.pointerId);
 
     if (studio.activeTool === 'brush' || studio.activeTool === 'clone' || studio.activeTool === 'eraser') {
+      const strokeId = createId('stroke');
+      const toolKind: 'brush' | 'clone' | 'eraser' =
+        studio.activeTool === 'clone' ? 'clone' : studio.activeTool === 'eraser' ? 'eraser' : 'brush';
+      const initPts: Array<[number, number]> = [[cx, cy]];
       dragRef.current = {
         mode: 'paint',
         layerId: selLayer.id,
+        strokeId,
         startClientX: e.clientX,
         startClientY: e.clientY,
         origA: 0,
         origB: 0,
-        points: [[cx, cy]],
+        points: initPts,
       };
+      studio.commitProjectChange(
+        `Paint ${toolKind} stroke`,
+        (draft) => {
+          const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+          const l = c?.layers.find((x) => x.id === selLayer.id);
+          if (l) {
+            l.paintStrokes.push({
+              id: strokeId,
+              tool: toolKind,
+              color: paintColor,
+              radius: paintRadius,
+              hardness: 85,
+              opacity: 100,
+              startTime: 0,
+              durationMode: 'constant',
+              duration: comp.duration,
+              cloneOffset: [40, 0],
+              points: [[cx, cy]],
+            });
+          }
+        },
+        `stroke_${strokeId}`,
+      );
       return;
     }
 
@@ -240,6 +269,7 @@ export const ViewportPanel: React.FC = () => {
     }
 
     const pos = evaluateProperty(selLayer.transform.position, studio.currentTime, selLayer, comp, studio.project).value;
+    const evalRotZ = evaluateProperty(selLayer.transform.rotationZ, studio.currentTime, selLayer, comp, studio.project).value;
     if (studio.activeTool === 'rotate') {
       const startAngle = Math.atan2(cy - pos[1], cx - pos[0]);
       dragRef.current = {
@@ -247,7 +277,7 @@ export const ViewportPanel: React.FC = () => {
         layerId: selLayer.id,
         startClientX: e.clientX,
         startClientY: e.clientY,
-        origA: selLayer.transform.rotationZ.value,
+        origA: evalRotZ,
         origB: startAngle,
         points: [],
       };
@@ -292,8 +322,23 @@ export const ViewportPanel: React.FC = () => {
       return;
     }
 
-    if (dr.mode === 'paint') {
-      dr.points.push(clientToCompCoords(e.clientX, e.clientY));
+    if (dr.mode === 'paint' && dr.layerId && dr.strokeId) {
+      const pt = clientToCompCoords(e.clientX, e.clientY);
+      const last = dr.points[dr.points.length - 1];
+      if (!last || Math.hypot(pt[0] - last[0], pt[1] - last[1]) >= 1.5) {
+        dr.points.push(pt);
+        const ptsSnapshot = dr.points.slice();
+        studio.commitProjectChange(
+          'Paint Stroke',
+          (draft) => {
+            const c = draft.compositions.find((x) => x.id === draft.activeCompId);
+            const l = c?.layers.find((x) => x.id === dr.layerId);
+            const stk = l?.paintStrokes.find((s) => s.id === dr.strokeId);
+            if (stk) stk.points = ptsSnapshot;
+          },
+          `stroke_${dr.strokeId}`,
+        );
+      }
       return;
     }
 
@@ -303,27 +348,68 @@ export const ViewportPanel: React.FC = () => {
     if (dr.mode === 'move' && dr.layerId) {
       const cdx = e.shiftKey && Math.abs(dy) > Math.abs(dx) ? 0 : dx;
       const cdy = e.shiftKey && Math.abs(dx) >= Math.abs(dy) ? 0 : dy;
+      const curT = Number(studio.currentTime.toFixed(3));
       studio.commitProjectChange(
         'Move Layer on Stage',
         (draft) => {
           const c = draft.compositions.find((x) => x.id === draft.activeCompId);
           const l = c?.layers.find((x) => x.id === dr.layerId);
           if (!l || l.locked) return;
-          l.transform.position.value = [Math.round(dr.origA + cdx), Math.round(dr.origB + cdy), l.transform.position.value[2]];
+          const nextPos: [number, number, number] = [
+            Math.round(dr.origA + cdx),
+            Math.round(dr.origB + cdy),
+            l.transform.position.value[2],
+          ];
+          l.transform.position.value = nextPos;
+          if (l.transform.position.animated && l.transform.position.keyframes.length > 0) {
+            const nearKf = l.transform.position.keyframes.find((k) => Math.abs(k.time - curT) < 0.04);
+            if (nearKf) {
+              nearKf.value = [...nextPos];
+            } else {
+              l.transform.position.keyframes.push({
+                id: createId('kf'),
+                time: curT,
+                value: [...nextPos],
+                interpolation: 'bezier',
+                inInfluence: 0.5,
+                outInfluence: 0.5,
+              });
+              l.transform.position.keyframes.sort((a, b) => a.time - b.time);
+            }
+          }
         },
         `move_${dr.layerId}`,
       );
     } else if (dr.mode === 'rotate' && dr.layerId) {
       const [cx, cy] = clientToCompCoords(e.clientX, e.clientY);
+      const curT = Number(studio.currentTime.toFixed(3));
       studio.commitProjectChange(
         'Rotate Layer on Stage',
         (draft) => {
           const c = draft.compositions.find((x) => x.id === draft.activeCompId);
           const l = c?.layers.find((x) => x.id === dr.layerId);
-          if (!l || l.locked) return;
-          const curAngle = Math.atan2(cy - l.transform.position.value[1], cx - l.transform.position.value[0]);
+          if (!l || l.locked || !c) return;
+          const evalP = evaluateProperty(l.transform.position, curT, l, c, draft).value;
+          const curAngle = Math.atan2(cy - evalP[1], cx - evalP[0]);
           const degDelta = ((curAngle - dr.origB) * 180) / Math.PI;
-          l.transform.rotationZ.value = Number((dr.origA + degDelta).toFixed(1));
+          const nextRot = Number((dr.origA + degDelta).toFixed(1));
+          l.transform.rotationZ.value = nextRot;
+          if (l.transform.rotationZ.animated && l.transform.rotationZ.keyframes.length > 0) {
+            const nearKf = l.transform.rotationZ.keyframes.find((k) => Math.abs(k.time - curT) < 0.04);
+            if (nearKf) {
+              nearKf.value = nextRot;
+            } else {
+              l.transform.rotationZ.keyframes.push({
+                id: createId('kf'),
+                time: curT,
+                value: nextRot,
+                interpolation: 'bezier',
+                inInfluence: 0.5,
+                outInfluence: 0.5,
+              });
+              l.transform.rotationZ.keyframes.sort((a, b) => a.time - b.time);
+            }
+          }
         },
         `rot_${dr.layerId}`,
       );
@@ -367,29 +453,7 @@ export const ViewportPanel: React.FC = () => {
   };
 
   const onPointerUp = () => {
-    const dr = dragRef.current;
     dragRef.current = null;
-    if (dr && dr.mode === 'paint' && dr.layerId && dr.points.length >= 1) {
-      const pts: Array<[number, number]> =
-        dr.points.length === 1
-          ? [dr.points[0], [dr.points[0][0] + 1, dr.points[0][1] + 1]]
-          : dr.points;
-      const toolKind: 'brush' | 'clone' | 'eraser' =
-        studio.activeTool === 'clone' ? 'clone' : studio.activeTool === 'eraser' ? 'eraser' : 'brush';
-      studio.recordPaintStroke(dr.layerId, {
-        id: createId('stroke'),
-        tool: toolKind,
-        color: paintColor,
-        radius: paintRadius,
-        hardness: 0.85,
-        opacity: 0.92,
-        startTime: 0,
-        durationMode: 'constant',
-        duration: comp.duration,
-        cloneOffset: [40, 0],
-        points: pts,
-      });
-    }
   };
 
   // BUG-P1-04 Fix: Real frame rasterization from DisplayMedia stream into ProjectAsset.rgbaBuffer
@@ -520,16 +584,20 @@ export const ViewportPanel: React.FC = () => {
             <option value="green">Green</option>
             <option value="blue">Blue</option>
             <option value="alpha">Alpha</option>
+            <option value="alpha-boundary">Alpha Boundary</option>
           </select>
 
           <select
             className="studio-select"
             aria-label="AOV Pass"
             value={studio.aovView}
-            onChange={(e) => studio.setAovView(e.target.value as 'beauty' | 'z-depth')}
+            onChange={(e) => studio.setAovView(e.target.value as typeof studio.aovView)}
           >
             <option value="beauty">Beauty</option>
             <option value="z-depth">Z-Depth</option>
+            <option value="normals">Normals</option>
+            <option value="object-id">Object ID</option>
+            <option value="motion-vectors">Motion Vec</option>
           </select>
 
           <button

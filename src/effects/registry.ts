@@ -389,8 +389,26 @@ export function getEffectCategories(): string[] {
   return Array.from(new Set(BUILT_IN_EFFECTS.map((e) => e.category)));
 }
 
+const EFFECT_ID_ALIASES: Record<string, string> = {
+  lumetri: 'lumetri-wheels',
+  'lumetri-color': 'lumetri-wheels',
+  'warp-stabilizer': 'warp-stabilizer-vfx',
+  keylight: 'keylight-12',
+};
+
+function resolveEffectDef(effectId: string) {
+  const direct = EFFECT_MAP.get(effectId);
+  if (direct) return direct;
+  const stripped = effectId.startsWith('fx-') ? effectId.slice(3) : effectId;
+  const byStripped = EFFECT_MAP.get(stripped);
+  if (byStripped) return byStripped;
+  const aliased = EFFECT_ID_ALIASES[stripped];
+  if (aliased && EFFECT_MAP.get(aliased)) return EFFECT_MAP.get(aliased);
+  return EFFECTS_CATALOG.find((fx) => fx.id.includes(stripped));
+}
+
 export function createEffectInstance(effectId: string): EffectInstance {
-  const def = EFFECT_MAP.get(effectId);
+  const def = resolveEffectDef(effectId);
   if (!def) {
     throw new Error(`Unknown effect ID: ${effectId}`);
   }
@@ -415,7 +433,7 @@ export function executeEffectBuffer(
   params: EvaluatedParams,
   ctx: EffectExecContext,
 ): void {
-  const def = EFFECT_MAP.get(effectId);
+  const def = resolveEffectDef(effectId);
   if (!def) {
     dst.set(src);
     return;

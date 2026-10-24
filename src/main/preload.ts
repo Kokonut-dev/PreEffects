@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('preEffectsDesktop', {
   isElectron: true,
   platform: process.platform,
+  arch: process.arch,
+  getAppInfo: () => ipcRenderer.invoke('preeffects:app-info'),
   openProjectDialog: () => ipcRenderer.invoke('preeffects:open-project'),
   saveProjectDialog: (defaultName: string, content: string) =>
     ipcRenderer.invoke('preeffects:save-project', { defaultName, content }),

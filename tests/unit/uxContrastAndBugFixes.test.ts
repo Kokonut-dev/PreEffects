@@ -101,7 +101,7 @@ describe('UX Laws, Complete Shortcut Registry & Interactive Studio Guide (SC-UX-
     expect(stepHit?.id).toBe('stepNext');
   });
 
-  it('provides 8 complete Studio Guide chapters and 8 interactive spotlight walkthrough steps (BUG-P3-04)', () => {
+  it('provides 8 complete Studio Guide chapters and 10 interactive feature tutorial modules (BUG-P3-04)', () => {
     expect(STUDIO_GUIDE_CHAPTERS).toHaveLength(8);
     for (const ch of STUDIO_GUIDE_CHAPTERS) {
       expect(ch.title.length).toBeGreaterThan(5);
@@ -109,7 +109,7 @@ describe('UX Laws, Complete Shortcut Registry & Interactive Studio Guide (SC-UX-
       expect(ch.tryActionId.length).toBeGreaterThan(3);
     }
 
-    expect(INTERACTIVE_TUTORIAL_STEPS).toHaveLength(8);
+    expect(INTERACTIVE_TUTORIAL_STEPS).toHaveLength(10);
     INTERACTIVE_TUTORIAL_STEPS.forEach((step, idx) => {
       expect(step.stepIndex).toBe(idx);
       expect(step.summary.length).toBeGreaterThan(20);

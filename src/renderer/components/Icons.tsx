@@ -5,6 +5,58 @@ interface IconProps {
   color?: string;
 }
 
+export const IconHome: React.FC<IconProps> = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2.2 7.2L8 2.4l5.8 4.8v6.1a.9.9 0 0 1-.9.9H9.8V10H6.2v4.2H3.1a.9.9 0 0 1-.9-.9V7.2Z" />
+  </svg>
+);
+
+export const IconSparkles: React.FC<IconProps> = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 1.8l1.4 3.6 3.6 1.4-3.6 1.4L8 11.8 6.6 8.2 3 6.8l3.6-1.4L8 1.8Z" />
+    <path d="M12.8 10.6l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6.6-1.6Z" />
+  </svg>
+);
+
+export const IconFolder: React.FC<IconProps> = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round">
+    <path d="M1.8 4.2A1.2 1.2 0 0 1 3 3h3.2l1.4 1.6H13a1.2 1.2 0 0 1 1.2 1.2v6.4A1.2 1.2 0 0 1 13 13.4H3a1.2 1.2 0 0 1-1.2-1.2V4.2Z" />
+  </svg>
+);
+
+export const IconLayers: React.FC<IconProps> = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 2.2L14 5.5 8 8.8 2 5.5 8 2.2Z" />
+    <path d="M2 8.4L8 11.7l6-3.3M2 11.1L8 14.4l6-3.3" />
+  </svg>
+);
+
+export const IconShieldCheck: React.FC<IconProps> = ({ size = 14, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 1.8l5.2 2v4c0 3.3-2.2 5.6-5.2 6.6-3-1-5.2-3.3-5.2-6.6v-4L8 1.8Z" />
+    <path d="M5.7 8.1l1.6 1.6 3.2-3.3" />
+  </svg>
+);
+
+export const IconArrowRight: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 8h10M9.2 4.2L13 8l-3.8 3.8" />
+  </svg>
+);
+
+export const IconCopy: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.4" strokeLinejoin="round">
+    <rect x="5.2" y="5.2" width="8.3" height="8.3" rx="1.2" />
+    <path d="M3.5 10.8H2.8a1 1 0 0 1-1-1V2.8a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v.7" />
+  </svg>
+);
+
+export const IconTrash: React.FC<IconProps> = ({ size = 13, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2.8 4.2h10.4M6 4.2V2.6h4v1.6M4.2 4.2l.6 9.2h6.4l.6-9.2" />
+  </svg>
+);
+
 export const IconCursor: React.FC<IconProps> = ({ size = 15, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round">
     <path d="M3.5 2L12.5 8.2L8.2 9.1L10.3 13.5L8.4 14.3L6.3 9.9L3.5 12.6V2Z" />
