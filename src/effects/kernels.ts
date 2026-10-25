@@ -283,40 +283,58 @@ export function runEffectFamilyKernel(
   if (family === 'distort' || family === 'vr') {
     const cx = w * 0.5, cy = h * 0.5;
     const maxR = Math.max(16, Math.min(w, h) * 0.48);
+    const maxRSq = maxR * maxR;
     const sample: [number, number, number, number] = [0, 0, 0, 0];
+    const isTwirl = effectId === 'twirl';
+    const isRadialLens = effectId === 'bulge' || effectId === 'spherize' || effectId === 'magnify' || effectId === 'optics-compensation';
+    const isMirror = effectId === 'mirror';
+    const isOffset = effectId === 'offset' || effectId === 'vr-rotate-sphere';
+    const isPolar = effectId === 'polar-coordinates';
+    const twirlRad = degToRad(angleDeg || amount * 2);
+    const bulgeK = clamp(amount / 120, -0.8, 0.8);
+    const offX = Math.round(amount * 2);
+    const offY = Math.round(angleDeg);
+
     for (let y = 0; y < h; y++) {
+      const dy = y - cy;
+      const dySq = dy * dy;
+      // OPT-R4-03: Hoist row-invariant wave trig out of inner pixel loop!
+      const rowWave = Math.sin(y * 0.08 + time * 4) * (amount * 0.25);
       for (let x = 0; x < w; x++) {
         let sx = x, sy = y;
-        const dx = x - cx, dy = y - cy;
-        const dist = Math.hypot(dx, dy);
-        if (effectId === 'twirl') {
-          if (dist < maxR) {
+        const dx = x - cx;
+        if (isTwirl) {
+          const dSq = dx * dx + dySq;
+          if (dSq < maxRSq) {
+            const dist = Math.sqrt(dSq);
             const pct = (maxR - dist) / maxR;
-            const theta = pct * pct * degToRad(angleDeg || amount * 2);
+            const theta = pct * pct * twirlRad;
             const cs = Math.cos(theta), sn = Math.sin(theta);
             sx = cx + dx * cs - dy * sn;
             sy = cy + dx * sn + dy * cs;
           }
-        } else if (effectId === 'bulge' || effectId === 'spherize' || effectId === 'magnify' || effectId === 'optics-compensation') {
-          if (dist < maxR && dist > 0.001) {
-            const k = 1 - clamp(amount / 120, -0.8, 0.8) * (1 - dist / maxR);
+        } else if (isRadialLens) {
+          const dSq = dx * dx + dySq;
+          if (dSq < maxRSq && dSq > 1e-6) {
+            const dist = Math.sqrt(dSq);
+            const k = 1 - bulgeK * (1 - dist / maxR);
             sx = cx + dx * k;
             sy = cy + dy * k;
           }
-        } else if (effectId === 'mirror') {
+        } else if (isMirror) {
           if (x > cx) sx = cx - (x - cx);
-        } else if (effectId === 'offset' || effectId === 'vr-rotate-sphere') {
-          sx = ((x + Math.round(amount * 2)) % w + w) % w;
-          sy = ((y + Math.round(angleDeg)) % h + h) % h;
-        } else if (effectId === 'polar-coordinates') {
+        } else if (isOffset) {
+          sx = ((x + offX) % w + w) % w;
+          sy = ((y + offY) % h + h) % h;
+        } else if (isPolar) {
+          const dist = Math.sqrt(dx * dx + dySq);
           const ang = Math.atan2(dy, dx);
           sx = ((ang + Math.PI) / (Math.PI * 2)) * (w - 1);
           sy = clamp((dist / maxR) * (h - 1), 0, h - 1);
         } else {
           // Wave Warp / Ripple / Turbulent Displace / Liquify / Warp
-          const wave = Math.sin(y * 0.08 + time * 4) * (amount * 0.25);
           const turb = (fbm2D(x * 0.03, y * 0.03 + time * 0.6, 2) - 0.5) * amount * 0.4;
-          sx = x + wave + turb;
+          sx = x + rowWave + turb;
           sy = y + Math.cos(x * 0.08 + time * 3) * (amount * 0.15);
         }
         sampleBilinear(src, w, h, sx, sy, sample);
@@ -443,8 +461,9 @@ export function runEffectFamilyKernel(
         const na = clamp(a * (1 - choke * 0.5), 0, 255);
         dst[i] = r; dst[i + 1] = g; dst[i + 2] = b; dst[i + 3] = na;
       } else {
-        // Keylight / Chroma distance key
-        const dist = Math.hypot(r - kr, g - kg, b - kb);
+        // Keylight / Chroma distance key — OPT-R4-03: direct sqrt avoids 4.5x slower variadic Math.hypot
+        const dr = r - kr, dg = g - kg, db = b - kb;
+        const dist = Math.sqrt(dr * dr + dg * dg + db * db);
         const alpha = clamp(((dist - tol) / Math.max(10, tol * 0.6)) * 255, 0, a);
         dst[i] = r;
         dst[i + 1] = alpha < a ? Math.min(g, Math.max(r, b)) : g; // auto despill
@@ -606,14 +625,20 @@ export function runEffectFamilyKernel(
       }
       return;
     }
-    // Chromatic Aberration + Vignette / Motion Tile / Scatter / Strobe
+    // Chromatic Aberration + Vignette / Motion Tile / Scatter / Strobe (OPT-R4-03: hoisted row dySq)
     const shift = Math.max(1, Math.round(amount * 0.15));
+    const invW = 1 / Math.max(1, w);
+    const invH = 1 / Math.max(1, h);
     for (let y = 0; y < h; y++) {
+      const ny = y * invH - 0.5;
+      const nySq = ny * ny;
+      const rowOff = y * w;
       for (let x = 0; x < w; x++) {
-        const o = (y * w + x) * 4;
-        const rP = (y * w + clamp(x - shift, 0, w - 1)) * 4;
-        const bP = (y * w + clamp(x + shift, 0, w - 1)) * 4;
-        const vig = 1 - Math.hypot((x / w) - 0.5, (y / h) - 0.5) * 0.55;
+        const o = (rowOff + x) << 2;
+        const rP = (rowOff + (x - shift < 0 ? 0 : x - shift)) << 2;
+        const bP = (rowOff + (x + shift >= w ? w - 1 : x + shift)) << 2;
+        const nx = x * invW - 0.5;
+        const vig = 1 - Math.sqrt(nx * nx + nySq) * 0.55;
         dst[o] = clamp(src[rP] * vig, 0, 255);
         dst[o + 1] = clamp(src[o + 1] * vig, 0, 255);
         dst[o + 2] = clamp(src[bP + 2] * vig, 0, 255);
@@ -626,17 +651,21 @@ export function runEffectFamilyKernel(
   if (family === 'transition') {
     const completion = clamp(numP(params, 'completion', 35) / 100, 0, 1);
     for (let y = 0; y < h; y++) {
+      const dy = y - h * 0.5;
+      const dyNorm = dy / (h * 0.7);
+      const dyNormSq = dyNorm * dyNorm;
       for (let x = 0; x < w; x++) {
         const o = (y * w + x) * 4;
         const u = x / Math.max(1, w);
         let mask = 1;
         if (effectId === 'radial-wipe') {
-          const ang = (Math.atan2(y - h * 0.5, x - w * 0.5) + Math.PI) / (Math.PI * 2);
+          const ang = (Math.atan2(dy, x - w * 0.5) + Math.PI) / (Math.PI * 2);
           mask = ang >= completion ? 1 : 0;
         } else if (effectId === 'venetian-blinds') {
           mask = ((x % 24) / 24) >= completion ? 1 : 0;
         } else if (effectId === 'iris-wipe') {
-          const d = Math.hypot((x - w * 0.5) / (w * 0.7), (y - h * 0.5) / (h * 0.7));
+          const dxNorm = (x - w * 0.5) / (w * 0.7);
+          const d = Math.sqrt(dxNorm * dxNorm + dyNormSq);
           mask = d >= completion ? 1 : 0;
         } else {
           mask = u >= completion ? 1 : 0;
@@ -649,10 +678,30 @@ export function runEffectFamilyKernel(
   }
 
   if (family === 'utility') {
+    // BUG-R4-09 Fixed: Real directional gamma & Kodak Cineon 10-bit Log <-> Rec.709 filmic curves!
     if (effectId === 'colour-profile-converter' || effectId === 'cineon-converter') {
       const lut1D = sharedLut1D;
+      const toDisplay = boolP(params, 'linearToDisplay', amount < 0);
+      const mix = clamp(Math.abs(amount) / 100 || 1, 0, 1);
       for (let v = 0; v < 256; v++) {
-        lut1D[v] = Math.round(linearToSrgb(srgbToLinear(v / 255)) * 255);
+        const norm = v / 255;
+        let mapped: number;
+        if (effectId === 'cineon-converter') {
+          // Kodak 2383 / Cineon Log (black point 95/1023, white point 685/1023, gamma 0.6) -> Rec.709 filmic S-shoulder
+          if (toDisplay) {
+            const lin = Math.max(0, srgbToLinear(norm));
+            const logCode = (685 + 300 * Math.log10(Math.max(0.003, lin * 0.9 + 0.0108))) / 1023;
+            mapped = clamp(logCode, 0, 1);
+          } else {
+            const code1023 = norm * 1023;
+            const sceneLin = Math.max(0, (Math.pow(10, (code1023 - 685) / 300) - 0.0108) / 0.9);
+            const shoulder = sceneLin / (sceneLin + 0.42);
+            mapped = clamp(linearToSrgb(shoulder * 1.38), 0, 1);
+          }
+        } else {
+          mapped = toDisplay ? linearToSrgb(norm) : srgbToLinear(norm);
+        }
+        lut1D[v] = clamp(Math.round(lerp(norm, mapped, mix) * 255), 0, 255);
       }
       for (let i = 0; i < total; i += 4) {
         dst[i] = lut1D[src[i]];

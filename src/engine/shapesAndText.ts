@@ -15,24 +15,30 @@ function plotDisc(
   alpha01: number,
 ): void {
   const rad = Math.max(0.6, radius);
-  const x0 = Math.max(0, Math.floor(cx - rad - 1));
-  const x1 = Math.min(w - 1, Math.ceil(cx + rad + 1));
-  const y0 = Math.max(0, Math.floor(cy - rad - 1));
-  const y1 = Math.min(h - 1, Math.ceil(cy + rad + 1));
+  const outerR = rad + 0.75;
+  const outerRSq = outerR * outerR;
+  const innerR = Math.max(0, rad - 0.25);
+  const innerRSq = innerR * innerR;
+  const x0 = Math.max(0, Math.floor(cx - outerR));
+  const x1 = Math.min(w - 1, Math.ceil(cx + outerR));
+  const y0 = Math.max(0, Math.floor(cy - outerR));
+  const y1 = Math.min(h - 1, Math.ceil(cy + outerR));
   for (let y = y0; y <= y1; y++) {
+    const dy = y - cy;
+    const dySq = dy * dy;
     for (let x = x0; x <= x1; x++) {
-      const d = Math.hypot(x - cx, y - cy);
-      if (d <= rad + 0.75) {
-        const cov = clamp(rad + 0.75 - d, 0, 1) * alpha01;
-        const o = (y * w + x) * 4;
-        const da = buf[o + 3] / 255;
-        const outA = cov + da * (1 - cov);
-        if (outA > 0) {
-          buf[o] = Math.round((r * cov + buf[o] * da * (1 - cov)) / outA);
-          buf[o + 1] = Math.round((g * cov + buf[o + 1] * da * (1 - cov)) / outA);
-          buf[o + 2] = Math.round((b * cov + buf[o + 2] * da * (1 - cov)) / outA);
-          buf[o + 3] = Math.round(outA * 255);
-        }
+      const dx = x - cx;
+      const dSq = dx * dx + dySq;
+      if (dSq > outerRSq) continue;
+      const cov = (dSq <= innerRSq ? 1 : clamp(outerR - Math.sqrt(dSq), 0, 1)) * alpha01;
+      const o = (y * w + x) * 4;
+      const da = buf[o + 3] / 255;
+      const outA = cov + da * (1 - cov);
+      if (outA > 0) {
+        buf[o] = ((r * cov + buf[o] * da * (1 - cov)) / outA + 0.5) | 0;
+        buf[o + 1] = ((g * cov + buf[o + 1] * da * (1 - cov)) / outA + 0.5) | 0;
+        buf[o + 2] = ((b * cov + buf[o + 2] * da * (1 - cov)) / outA + 0.5) | 0;
+        buf[o + 3] = (outA * 255 + 0.5) | 0;
       }
     }
   }
@@ -264,6 +270,26 @@ function computeSelectorWeight(sel: TextAnimatorSelector, charIdx: number, total
   }
 }
 
+let sharedTextCanvas: HTMLCanvasElement | null = null;
+let sharedTextCtx: CanvasRenderingContext2D | null = null;
+const GLYPH_WIDTH_CACHE = new Map<string, number>();
+
+function getSharedTextContext(w: number, h: number): CanvasRenderingContext2D | null {
+  if (typeof document === 'undefined') return null;
+  if (!sharedTextCanvas) {
+    sharedTextCanvas = document.createElement('canvas');
+    sharedTextCtx = sharedTextCanvas.getContext('2d', { willReadFrequently: true });
+  }
+  if (!sharedTextCanvas || !sharedTextCtx) return null;
+  if (sharedTextCanvas.width !== w || sharedTextCanvas.height !== h) {
+    sharedTextCanvas.width = w;
+    sharedTextCanvas.height = h;
+  } else {
+    sharedTextCtx.clearRect(0, 0, w, h);
+  }
+  return sharedTextCtx;
+}
+
 export function rasterizeTextLayer(
   buf: Uint8ClampedArray,
   w: number,
@@ -280,92 +306,97 @@ export function rasterizeTextLayer(
   const trackingPx = td.tracking * scaleFactor * 0.1;
   const lineH = Math.max(fontPx * 1.15, td.leading * scaleFactor);
 
-  // Use browser OffscreenCanvas / HTMLCanvasElement when available for crisp OpenType font shaping!
-  if (typeof document !== 'undefined') {
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.font = `${td.fontStyle} ${td.fontWeight} ${fontPx}px "${td.fontFamily}", Inter, sans-serif`;
-      ctx.textBaseline = 'middle';
-      const pathMask = td.pathMaskId ? masks.find((m) => m.id === td.pathMaskId) : undefined;
-      let globalIdx = 0;
-      const totalChars = Math.max(1, rawText.replace(/\n/g, '').length);
+  // OPT-R4-02: Reuse singleton Canvas2D ({ willReadFrequently: true }) + cached glyph advance widths!
+  const ctx = getSharedTextContext(w, h);
+  if (ctx) {
+    const fontSpec = `${td.fontStyle} ${td.fontWeight} ${fontPx}px "${td.fontFamily}", Inter, sans-serif`;
+    ctx.font = fontSpec;
+    ctx.textBaseline = 'middle';
+    const pathMask = td.pathMaskId ? masks.find((m) => m.id === td.pathMaskId) : undefined;
+    let globalIdx = 0;
+    const totalChars = Math.max(1, rawText.replace(/\n/g, '').length);
 
-      lines.forEach((line, li) => {
-        const chars = Array.from(line);
-        const charWidths = chars.map((ch) => ctx.measureText(ch).width + trackingPx);
-        const totalLineW = charWidths.reduce((a, b) => a + b, 0);
-        let cursorX =
-          td.align === 'center'
-            ? (w - totalLineW) / 2
-            : td.align === 'right'
-              ? w - totalLineW - 24 * scaleFactor
-              : 24 * scaleFactor;
-        const baseY = h / 2 + (li - (lines.length - 1) / 2) * lineH;
-
-        chars.forEach((ch, ci) => {
-          let dx = 0, dy = 0, dz = 0, scX = 1, scY = 1, rot = 0, op = 1, hueShift = 0;
-          for (const anim of td.animators) {
-            const wt = computeSelectorWeight(anim, globalIdx, totalChars, time);
-            if (wt !== 0) {
-              dx += anim.positionOffset[0] * scaleFactor * wt;
-              dy += anim.positionOffset[1] * scaleFactor * wt;
-              dz += (anim.positionOffset[2] ?? 0) * scaleFactor * wt;
-              scX += ((anim.scaleOffset[0] - 100) / 100) * wt;
-              scY += ((anim.scaleOffset[1] - 100) / 100) * wt;
-              rot += anim.rotationOffset * wt;
-              op = clamp(op + (anim.opacityOffset / 100) * wt, 0, 1);
-              cursorX += anim.trackingOffset * scaleFactor * 0.1 * wt;
-              hueShift += (anim.fillHueShift ?? 0) * wt;
-            }
-          }
-
-          let drawX = cursorX + charWidths[ci] * 0.5 + dx;
-          let drawY = baseY + dy;
-          if (pathMask && pathMask.vertices.length >= 2) {
-            const u = clamp(globalIdx / Math.max(1, totalChars - 1), 0, 1);
-            const segIdx = Math.min(pathMask.vertices.length - 2, Math.floor(u * (pathMask.vertices.length - 1)));
-            const v0 = pathMask.vertices[segIdx], v1 = pathMask.vertices[segIdx + 1];
-            const localT = u * (pathMask.vertices.length - 1) - segIdx;
-            drawX = lerp(v0.x, v1.x, localT) * scaleFactor + dx;
-            drawY = lerp(v0.y, v1.y, localT) * scaleFactor + dy;
-          }
-          if (td.perCharacter3D && dz !== 0) {
-            const persp = 600 / Math.max(120, 600 + dz);
-            scX *= persp; scY *= persp;
-          }
-
-          ctx.save();
-          ctx.globalAlpha = op;
-          ctx.translate(drawX, drawY);
-          if (rot !== 0) ctx.rotate(degToRad(rot));
-          ctx.scale(Math.max(0.05, scX), Math.max(0.05, scY));
-          if (hueShift !== 0) {
-            const [hh, ss, ll] = rgbToHsl(baseR, baseG, baseB);
-            const [nr, ng, nb] = hslToRgb(hh + hueShift, ss, ll);
-            ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
-          } else {
-            ctx.fillStyle = td.fillColor;
-          }
-          if (td.strokeWidth > 0) {
-            ctx.strokeStyle = td.strokeColor;
-            ctx.lineWidth = td.strokeWidth * scaleFactor;
-            ctx.strokeText(ch, -charWidths[ci] * 0.5, 0);
-          }
-          ctx.fillText(ch, -charWidths[ci] * 0.5, 0);
-          ctx.restore();
-
-          cursorX += charWidths[ci];
-          globalIdx++;
-        });
+    lines.forEach((line, li) => {
+      const chars = Array.from(line);
+      const charWidths = chars.map((ch) => {
+        const key = `${fontSpec}|${ch}`;
+        let adv = GLYPH_WIDTH_CACHE.get(key);
+        if (adv === undefined) {
+          adv = ctx.measureText(ch).width;
+          if (GLYPH_WIDTH_CACHE.size > 4096) GLYPH_WIDTH_CACHE.clear();
+          GLYPH_WIDTH_CACHE.set(key, adv);
+        }
+        return adv + trackingPx;
       });
+      const totalLineW = charWidths.reduce((a, b) => a + b, 0);
+      let cursorX =
+        td.align === 'center'
+          ? (w - totalLineW) / 2
+          : td.align === 'right'
+            ? w - totalLineW - 24 * scaleFactor
+            : 24 * scaleFactor;
+      const baseY = h / 2 + (li - (lines.length - 1) / 2) * lineH;
 
-      const img = ctx.getImageData(0, 0, w, h);
-      buf.set(img.data);
-      return;
-    }
+      chars.forEach((ch, ci) => {
+        let dx = 0, dy = 0, dz = 0, scX = 1, scY = 1, rot = 0, op = 1, hueShift = 0;
+        for (const anim of td.animators) {
+          const wt = computeSelectorWeight(anim, globalIdx, totalChars, time);
+          if (wt !== 0) {
+            dx += anim.positionOffset[0] * scaleFactor * wt;
+            dy += anim.positionOffset[1] * scaleFactor * wt;
+            dz += (anim.positionOffset[2] ?? 0) * scaleFactor * wt;
+            scX += ((anim.scaleOffset[0] - 100) / 100) * wt;
+            scY += ((anim.scaleOffset[1] - 100) / 100) * wt;
+            rot += anim.rotationOffset * wt;
+            op = clamp(op + (anim.opacityOffset / 100) * wt, 0, 1);
+            cursorX += anim.trackingOffset * scaleFactor * 0.1 * wt;
+            hueShift += (anim.fillHueShift ?? 0) * wt;
+          }
+        }
+
+        let drawX = cursorX + charWidths[ci] * 0.5 + dx;
+        let drawY = baseY + dy;
+        if (pathMask && pathMask.vertices.length >= 2) {
+          const u = clamp(globalIdx / Math.max(1, totalChars - 1), 0, 1);
+          const segIdx = Math.min(pathMask.vertices.length - 2, Math.floor(u * (pathMask.vertices.length - 1)));
+          const v0 = pathMask.vertices[segIdx], v1 = pathMask.vertices[segIdx + 1];
+          const localT = u * (pathMask.vertices.length - 1) - segIdx;
+          drawX = lerp(v0.x, v1.x, localT) * scaleFactor + dx;
+          drawY = lerp(v0.y, v1.y, localT) * scaleFactor + dy;
+        }
+        if (td.perCharacter3D && dz !== 0) {
+          const persp = 600 / Math.max(120, 600 + dz);
+          scX *= persp; scY *= persp;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = op;
+        ctx.translate(drawX, drawY);
+        if (rot !== 0) ctx.rotate(degToRad(rot));
+        ctx.scale(Math.max(0.05, scX), Math.max(0.05, scY));
+        if (hueShift !== 0) {
+          const [hh, ss, ll] = rgbToHsl(baseR, baseG, baseB);
+          const [nr, ng, nb] = hslToRgb(hh + hueShift, ss, ll);
+          ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
+        } else {
+          ctx.fillStyle = td.fillColor;
+        }
+        if (td.strokeWidth > 0) {
+          ctx.strokeStyle = td.strokeColor;
+          ctx.lineWidth = td.strokeWidth * scaleFactor;
+          ctx.strokeText(ch, -charWidths[ci] * 0.5, 0);
+        }
+        ctx.fillText(ch, -charWidths[ci] * 0.5, 0);
+        ctx.restore();
+
+        cursorX += charWidths[ci];
+        globalIdx++;
+      });
+    });
+
+    const img = ctx.getImageData(0, 0, w, h);
+    buf.set(img.data);
+    return;
   }
 
   // Headless Node software glyph rasterizer (used in unit/integration/perf tests!)

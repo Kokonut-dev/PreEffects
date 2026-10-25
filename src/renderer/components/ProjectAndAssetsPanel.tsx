@@ -7,7 +7,7 @@ import { studioRamCache } from '../../engine/compositor';
 import { t } from '../../utils/i18n';
 import { IconPlus, IconSearch, IconStar } from './Icons';
 
-export const ProjectAndAssetsPanel: React.FC<{ widthPx?: number }> = ({ widthPx = 282 }) => {
+const ProjectAndAssetsPanelInner: React.FC<{ widthPx?: number }> = ({ widthPx = 282 }) => {
   const studio = useStudio();
   const loc = studio.preferences.locale;
   const [fxSearch, setFxSearch] = useState('');
@@ -400,3 +400,5 @@ export const ProjectAndAssetsPanel: React.FC<{ widthPx?: number }> = ({ widthPx 
     </aside>
   );
 };
+
+export const ProjectAndAssetsPanel = React.memo(ProjectAndAssetsPanelInner);

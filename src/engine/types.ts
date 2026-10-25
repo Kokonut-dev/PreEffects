@@ -71,6 +71,7 @@ export type OutputFormatId =
   | 'tga-seq'
   | 'exr-seq'
   | 'png-frame'
+  | 'png-seq-zip'
   | 'webm'
   | 'mp4-ffmpeg'
   | 'prores-ffmpeg';
@@ -407,7 +408,18 @@ export interface ProjectAsset {
 
 export interface OutputModuleConfig {
   id: string;
-  format: 'gif' | 'avi' | 'wav' | 'ppm-seq' | 'tga-seq' | 'exr-seq' | 'png-frame' | 'webm' | 'mp4-ffmpeg' | 'prores-ffmpeg';
+  format:
+    | 'gif'
+    | 'avi'
+    | 'wav'
+    | 'ppm-seq'
+    | 'tga-seq'
+    | 'exr-seq'
+    | 'png-frame'
+    | 'png-seq-zip'
+    | 'webm'
+    | 'mp4-ffmpeg'
+    | 'prores-ffmpeg';
   channels: 'rgb' | 'rgba' | 'alpha';
   includeAudio: boolean;
   aovPasses: Array<'beauty' | 'z-depth' | 'normals' | 'object-id' | 'motion-vectors'>;

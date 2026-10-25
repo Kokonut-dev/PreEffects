@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
+import type { UpdateCheckResult, UpdateProgressEvent } from '../global';
 import { INTERACTIVE_TUTORIAL_STEPS } from '../data/studioGuideData';
 import { EFFECTS_CATALOG } from '../../effects/registry';
 import { auditThemeContrast, STUDIO_THEME_PALETTES } from '../../utils/contrastMath';
@@ -9,6 +10,7 @@ import {
   IconCheck,
   IconCopy,
   IconCube3D,
+  IconDownload,
   IconFolder,
   IconLayers,
   IconMoon,
@@ -63,6 +65,82 @@ export const HomePage: React.FC = () => {
   const [homeTab, setHomeTab] = useState<HomeSectionTab>('overview');
   const [tutorialCategory, setTutorialCategory] = useState<'All' | 'Foundations' | 'Animation & Rigging' | 'VFX & 3D' | 'Pipeline & Export'>('All');
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateInstalling, setUpdateInstalling] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgressEvent | null>(null);
+  const lastTriggerRef = useRef<number>(studio.updateCheckTrigger);
+
+  // QOL-R4-05: Subscribe to real-time progress events from Electron Main process during opt-in update
+  useEffect(() => {
+    if (!window.preEffectsDesktop?.onUpdateProgress) return;
+    return window.preEffectsDesktop.onUpdateProgress((ev) => {
+      setUpdateProgress(ev);
+    });
+  }, []);
+
+  const runOptInUpdateCheck = useCallback(async () => {
+    setHomeTab('system');
+    setUpdateChecking(true);
+    setUpdateProgress({ stage: 'checking', percent: 15, message: 'Checking GitHub Releases (opt-in request)…' });
+    try {
+      if (window.preEffectsDesktop?.checkForUpdates) {
+        const res = await window.preEffectsDesktop.checkForUpdates();
+        setUpdateInfo(res);
+        setUpdateProgress(null);
+      } else {
+        setUpdateInfo({
+          ok: true,
+          currentVersion: studio.desktopAppInfo.version,
+          latestVersion: studio.desktopAppInfo.version,
+          updateAvailable: false,
+          canInstallInPlace: false,
+          releaseName: `PreEffects v${studio.desktopAppInfo.version} (Browser Studio Mode)`,
+          releaseNotes: 'In-place binary installer (.dmg / .exe / .AppImage) runs inside the packaged Desktop app with zero background network calls.',
+        });
+        setUpdateProgress(null);
+      }
+    } catch (err) {
+      setUpdateInfo({
+        ok: false,
+        currentVersion: studio.desktopAppInfo.version,
+        latestVersion: studio.desktopAppInfo.version,
+        updateAvailable: false,
+        canInstallInPlace: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setUpdateProgress(null);
+    } finally {
+      setUpdateChecking(false);
+    }
+  }, [studio.desktopAppInfo.version]);
+
+  const runOptInInstallUpdate = useCallback(async () => {
+    if (!updateInfo || !window.preEffectsDesktop?.installUpdate) return;
+    setUpdateInstalling(true);
+    try {
+      studio.saveCurrentToVault();
+      const res = await window.preEffectsDesktop.installUpdate(updateInfo);
+      if (!res.ok) {
+        studio.notify(`Update note: ${res.message}`);
+        setUpdateProgress({ stage: 'error', percent: 0, message: res.message });
+      } else {
+        studio.notify(res.message);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setUpdateProgress({ stage: 'error', percent: 0, message: msg });
+    } finally {
+      setUpdateInstalling(false);
+    }
+  }, [updateInfo, studio]);
+
+  useEffect(() => {
+    if (studio.updateCheckTrigger !== lastTriggerRef.current) {
+      lastTriggerRef.current = studio.updateCheckTrigger;
+      void runOptInUpdateCheck();
+    }
+  }, [studio.updateCheckTrigger, runOptInUpdateCheck]);
 
   const comp = studio.activeComp;
   const totalLayers = useMemo(
@@ -150,7 +228,14 @@ export const HomePage: React.FC = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontWeight: 700, fontSize: 14.5, letterSpacing: '-0.01em' }}>PreEffects</span>
-              <span className="badge mono">v{studio.desktopAppInfo.version}</span>
+              <button
+                className="badge mono"
+                style={{ cursor: 'pointer', border: '1px solid var(--border-subtle)' }}
+                onClick={() => void runOptInUpdateCheck()}
+                title="Click to check for a newer GitHub Release (100% opt-in, zero background calls)"
+              >
+                v{studio.desktopAppInfo.version} ↻
+              </button>
               <span className="badge ok">100% Offline</span>
             </div>
           </div>
@@ -893,6 +978,156 @@ export const HomePage: React.FC = () => {
                     Purge RAM Cache
                   </button>
                 </div>
+              </section>
+
+              {/* QOL-R4-05: 100% Opt-In $0/yr In-Place Desktop Updater Card */}
+              <section
+                data-testid="software-updates-card"
+                style={{
+                  gridColumn: '1 / -1',
+                  background: 'var(--bg-panel)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 10,
+                  padding: 20,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <div className="section-eyebrow">Software Updates · 100% Opt-In ($0/yr GitHub Releases)</div>
+                    <h2 style={{ fontSize: 16, fontWeight: 700, marginTop: 2 }}>
+                      Verify &amp; Install Releases In Place — Zero Background Network Traffic
+                    </h2>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, maxWidth: 740 }}>
+                      PreEffects never phones home on launch or in the background. Clicking <strong>Check for Updates</strong> performs a single main-process query to <code>Kokonut-dev/PreEffects</code>, verifies SHA-256 integrity, clears macOS Gatekeeper quarantine attributes on unsigned builds, and hot-swaps the desktop app cleanly.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      className="studio-btn"
+                      disabled={updateChecking || updateInstalling}
+                      onClick={() => void runOptInUpdateCheck()}
+                    >
+                      <IconDownload size={13} />
+                      <span>{updateChecking ? 'Checking…' : 'Check for Updates'}</span>
+                    </button>
+
+                    {updateInfo?.updateAvailable && updateInfo.canInstallInPlace && (
+                      <button
+                        className="studio-btn primary"
+                        disabled={updateInstalling}
+                        onClick={() => void runOptInInstallUpdate()}
+                      >
+                        <IconSparkles size={13} />
+                        <span>
+                          {updateInstalling
+                            ? 'Installing…'
+                            : `Download & Install v${updateInfo.latestVersion}`}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {updateProgress && (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 7,
+                      background: 'var(--bg-inset)',
+                      border: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5 }}>
+                      <span style={{ color: updateProgress.stage === 'error' ? 'var(--status-err)' : 'var(--text-primary)' }}>
+                        {updateProgress.message}
+                      </span>
+                      <span className="mono" style={{ color: 'var(--accent-amber)' }}>
+                        {Math.round(updateProgress.percent)}%
+                      </span>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 4, background: 'var(--bg-canvas)', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${Math.max(2, Math.min(100, updateProgress.percent))}%`,
+                          height: '100%',
+                          background: updateProgress.stage === 'error' ? 'var(--status-err)' : 'var(--accent-cyan)',
+                          transition: 'width 140ms ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {updateInfo && (
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      background: 'var(--bg-inset)',
+                      border: `1px solid ${
+                        !updateInfo.ok
+                          ? 'var(--status-err)'
+                          : updateInfo.updateAvailable
+                          ? 'var(--accent-amber)'
+                          : 'var(--border-subtle)'
+                      }`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className={`badge ${!updateInfo.ok ? 'amber' : updateInfo.updateAvailable ? 'amber' : 'ok'}`}>
+                          {!updateInfo.ok
+                            ? 'Offline / Unreachable'
+                            : updateInfo.updateAvailable
+                            ? `Update Available: v${updateInfo.latestVersion}`
+                            : `Up to Date (v${updateInfo.currentVersion})`}
+                        </span>
+                        {updateInfo.assetName && (
+                          <span className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            Asset: {updateInfo.assetName}
+                            {updateInfo.assetSize ? ` (${(updateInfo.assetSize / (1024 * 1024)).toFixed(1)} MB)` : ''}
+                          </span>
+                        )}
+                      </div>
+                      {updateInfo.sha256 && (
+                        <span className="mono" style={{ fontSize: 10.5, color: 'var(--status-ok)' }}>
+                          SHA-256: {updateInfo.sha256.slice(0, 16)}…
+                        </span>
+                      )}
+                    </div>
+
+                    {updateInfo.error && (
+                      <div style={{ fontSize: 11.5, color: 'var(--status-err)' }}>
+                        Could not reach GitHub Releases ({updateInfo.error}). Studio continues operating 100% offline.
+                      </div>
+                    )}
+
+                    {updateInfo.releaseNotes && (
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: 'var(--text-secondary)',
+                          whiteSpace: 'pre-wrap',
+                          maxHeight: 110,
+                          overflowY: 'auto',
+                          lineHeight: 1.45,
+                        }}
+                      >
+                        {updateInfo.releaseNotes.slice(0, 600)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </section>
             </div>
           )}

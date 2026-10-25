@@ -183,6 +183,18 @@ export function evaluateProperty<T>(
       return v1;
     };
 
+    const addScaledDiff = (base: unknown, startV: unknown, endV: unknown, mult: number): T => {
+      if (typeof base === 'number' && typeof startV === 'number' && typeof endV === 'number') {
+        return (base + (endV - startV) * mult) as unknown as T;
+      }
+      if (Array.isArray(base) && Array.isArray(startV) && Array.isArray(endV)) {
+        return base.map((bv, idx) =>
+          typeof bv === 'number' ? bv + ((Number(endV[idx] ?? bv) - Number(startV[idx] ?? bv)) * mult) : bv,
+        ) as unknown as T;
+      }
+      return base as T;
+    };
+
     const loopOut = (type: 'cycle' | 'pingpong' | 'offset' | 'continue' = 'cycle'): T => {
       const kfs = prop.keyframes;
       if (kfs.length < 2) return evaluateKeyframesAtTime(prop, evalTime);
@@ -190,6 +202,12 @@ export function evaluateProperty<T>(
       const t1 = kfs[kfs.length - 1].time;
       const span = Math.max(1e-5, t1 - t0);
       if (evalTime <= t1) return evaluateKeyframesAtTime(prop, evalTime);
+      if (type === 'continue') {
+        const dt = Math.min(0.01, span * 0.1);
+        const vEnd = evaluateKeyframesAtTime(prop, t1);
+        const vPrev = evaluateKeyframesAtTime(prop, t1 - dt);
+        return addScaledDiff(vEnd, vPrev, vEnd, (evalTime - t1) / dt);
+      }
       const elapsed = evalTime - t0;
       const cycles = Math.floor(elapsed / span);
       const rem = elapsed - cycles * span;
@@ -199,34 +217,41 @@ export function evaluateProperty<T>(
       }
       if (type === 'offset') {
         const base = evaluateKeyframesAtTime(prop, t0 + rem);
-        const vStart = kfs[0].value;
-        const vEnd = kfs[kfs.length - 1].value;
-        if (typeof base === 'number' && typeof vStart === 'number' && typeof vEnd === 'number') {
-          return (base + (vEnd - vStart) * cycles) as unknown as T;
-        }
+        return addScaledDiff(base, kfs[0].value, kfs[kfs.length - 1].value, cycles);
       }
       return evaluateKeyframesAtTime(prop, t0 + rem);
     };
 
-    const loopIn = (type: 'cycle' | 'pingpong' = 'cycle'): T => {
+    const loopIn = (type: 'cycle' | 'pingpong' | 'offset' | 'continue' = 'cycle'): T => {
       const kfs = prop.keyframes;
       if (kfs.length < 2) return evaluateKeyframesAtTime(prop, evalTime);
       const t0 = kfs[0].time;
       const t1 = kfs[kfs.length - 1].time;
       const span = Math.max(1e-5, t1 - t0);
       if (evalTime >= t0) return evaluateKeyframesAtTime(prop, evalTime);
+      if (type === 'continue') {
+        const dt = Math.min(0.01, span * 0.1);
+        const vStart = evaluateKeyframesAtTime(prop, t0);
+        const vNext = evaluateKeyframesAtTime(prop, t0 + dt);
+        return addScaledDiff(vStart, vStart, vNext, (evalTime - t0) / dt);
+      }
       const behind = t0 - evalTime;
       const cycles = Math.floor(behind / span);
       const rem = behind - cycles * span;
+      if (type === 'offset') {
+        const base = evaluateKeyframesAtTime(prop, t1 - rem);
+        return addScaledDiff(base, kfs[0].value, kfs[kfs.length - 1].value, -(cycles + 1));
+      }
       const mapped = type === 'pingpong' && cycles % 2 === 0 ? t0 + rem : t1 - rem;
       return evaluateKeyframesAtTime(prop, mapped);
     };
 
-    const resolveLayerAccessor = (targetComp: Composition, nameOrIndex: string | number) => {
+    const resolveLayerAccessor = (targetComp: Composition, nameOrIndex: string | number, selfFallback?: Layer) => {
       const found =
         typeof nameOrIndex === 'number'
           ? targetComp.layers[nameOrIndex - 1]
-          : targetComp.layers.find((l) => l.name === nameOrIndex || l.id === nameOrIndex);
+          : targetComp.layers.find((l) => l.name === nameOrIndex || l.id === nameOrIndex) ??
+            (selfFallback && (selfFallback.id === nameOrIndex || selfFallback.name === nameOrIndex) ? selfFallback : undefined);
       if (!found) throw new Error(`Unknown layer "${nameOrIndex}"`);
       return {
         name: found.name,
@@ -309,7 +334,7 @@ export function evaluateProperty<T>(
         frameDuration: 1 / compObj.fps,
         layer: (q: string | number) => resolveLayerAccessor(compObj, q),
       },
-      thisLayer: resolveLayerAccessor(compObj, layer.id),
+      thisLayer: resolveLayerAccessor(compObj, layer.id, layer),
       comp: (compName: string) => {
         const target = project?.compositions.find((c) => c.name === compName || c.id === compName) ?? compObj;
         return {
@@ -335,7 +360,7 @@ export function evaluateProperty<T>(
           },
         };
       },
-      effect: (fxName: string) => resolveLayerAccessor(compObj, layer.id).effect(fxName),
+      effect: (fxName: string) => resolveLayerAccessor(compObj, layer.id, layer).effect(fxName),
       wiggle,
       linear: (t: number, tMin: number, tMax: number, v1: unknown, v2: unknown) => interpMap('linear', t, tMin, tMax, v1, v2),
       ease: (t: number, tMin: number, tMax: number, v1: unknown, v2: unknown) => interpMap('ease', t, tMin, tMax, v1, v2),

@@ -83,7 +83,7 @@ const THEME_LABELS: Record<string, string> = {
   custom: 'Custom',
 };
 
-export const TopChrome: React.FC = () => {
+const TopChromeInner: React.FC = () => {
   const studio = useStudio();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [addLayerOpen, setAddLayerOpen] = useState(false);
@@ -123,6 +123,8 @@ export const TopChrome: React.FC = () => {
       items: [
         { label: `Undo (${studio.undoCount})`, shortcut: 'Ctrl+Z', action: () => studio.undo() },
         { label: `Redo (${studio.redoCount})`, shortcut: 'Ctrl+Shift+Z', action: () => studio.redo() },
+        { label: 'Copy Layer / Effect / Keyframe', shortcut: 'Ctrl+C', action: () => studio.copySelectionToClipboard() },
+        { label: 'Paste Layer / Effect / Keyframe', shortcut: 'Ctrl+V', action: () => studio.pasteClipboard() },
         { label: 'Undo History & Version Drawer…', action: () => studio.setActiveModal('history') },
         { label: 'Duplicate Layer', shortcut: 'Ctrl+D', action: () => studio.duplicateSelectedLayers(false) },
         { label: 'Smart Duplicate (Relink Expressions)', shortcut: 'Ctrl+Alt+D', action: () => studio.duplicateSelectedLayers(true) },
@@ -179,7 +181,8 @@ export const TopChrome: React.FC = () => {
         { label: 'Toggle Timeline ⇄ Node Graph (DAG)', shortcut: 'Shift+N', action: () => studio.setBottomMode(studio.bottomMode === 'nodes' ? 'timeline' : 'nodes') },
         { label: 'Open Speed / Value Graph Editor', shortcut: 'U', action: () => studio.setBottomMode('graph') },
         { label: 'Toggle Minimal Focus Workspace', shortcut: '`', action: () => studio.setActiveWorkspace(studio.activeWorkspace === 'minimal' ? 'standard' : 'minimal') },
-        { label: 'Reset Viewport Pan & Zoom', action: () => { studio.setViewportPan([0, 0]); studio.setZoomPct(100); } },
+        { label: 'Zoom Viewport to Fit Stage', shortcut: 'Alt+0', action: () => studio.fitViewportToStage() },
+        { label: 'Reset Viewport Pan & 100% Zoom', action: () => { studio.setViewportPan([0, 0]); studio.setZoomPct(100); } },
         { label: 'Toggle Safe Zone Guides', action: () => studio.setShowSafeZones(!studio.showSafeZones) },
         { label: 'Toggle Proportional Grid', action: () => studio.setShowGrid(!studio.showGrid) },
         { label: 'Toggle Alpha Checkerboard', action: () => studio.setCheckerboard(!studio.checkerboard) },
@@ -605,3 +608,5 @@ export const TopChrome: React.FC = () => {
     </header>
   );
 };
+
+export const TopChrome = React.memo(TopChromeInner);

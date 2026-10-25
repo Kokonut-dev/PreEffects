@@ -3,6 +3,7 @@ import {
   AnimatableProperty,
   Composition,
   EffectInstance,
+  Keyframe,
   Layer,
   LayerType,
   PaintStroke,
@@ -28,7 +29,7 @@ import {
 } from '../../engine/serializer';
 import { evaluateProperty, smartDuplicateLayers } from '../../engine/expressions';
 import { applyEasyEasePreset, sequenceLayers, timeReverseKeyframes } from '../../engine/animation';
-import { executeRenderQueueJob } from '../../engine/export';
+import { executeRenderQueueJobAsync, mixCompositionAudioSamples } from '../../engine/export';
 import { ShortcutBinding, DEFAULT_SHORTCUTS, matchShortcutEvent } from '../../utils/shortcuts';
 import { createNullsFromMaskVertices } from '../../utils/qolHelpers';
 import { pickAccessibleOnAccent } from '../../utils/contrastMath';
@@ -73,11 +74,26 @@ export interface DesktopAppRuntimeInfo {
   isDesktopApp: boolean;
 }
 
+export interface SelectedKeyframeTarget {
+  layerId: string;
+  propKey: 'anchorPoint' | 'position' | 'scale' | 'rotationX' | 'rotationY' | 'rotationZ' | 'opacity';
+  keyframeId: string;
+}
+
+type StudioClipboardPayload =
+  | { kind: 'layers'; layers: Layer[] }
+  | { kind: 'effect'; effect: EffectInstance }
+  | {
+      kind: 'keyframe';
+      propKey: SelectedKeyframeTarget['propKey'];
+      keyframe: Keyframe<number | [number, number, number]>;
+    };
+
 export type ChannelViewId = 'rgb' | 'red' | 'green' | 'blue' | 'alpha' | 'alpha-boundary';
 export type AovViewId = 'beauty' | 'z-depth' | 'normals' | 'object-id' | 'motion-vectors';
 
 /**
- * BUG-R3-08 Fixed: Dynamic RIFF WAVE chunk parser supporting arbitrary JUNK/LIST/bext chunks,
+ * Dynamic RIFF WAVE chunk parser supporting arbitrary JUNK/LIST/bext chunks,
  * 8/16/24/32-bit PCM & 32-bit IEEE Float (formatTag 1 or 3), multi-channel to mono downmix, and real sampleRate.
  */
 export function parseWavPcmBuffer(ab: ArrayBuffer): { samples: Float32Array; sampleRate: number; durationSec: number } {
@@ -169,13 +185,20 @@ export interface StudioContextValue {
   openVaultProject: (vaultId: string) => void;
   deleteVaultProject: (vaultId: string) => void;
   openProjectFileLocal: () => Promise<void>;
+  updateCheckTrigger: number;
 
   project: Project;
   activeComp: Composition;
   selectedLayerIds: string[];
   selectedLayer: Layer | undefined;
+  selectedEffectId: string | null;
+  setSelectedEffectId: (id: string | null) => void;
+  selectedKeyframeTarget: SelectedKeyframeTarget | null;
+  setSelectedKeyframeTarget: (t: SelectedKeyframeTarget | null) => void;
   currentTime: number;
   isPlaying: boolean;
+  audioMuted: boolean;
+  setAudioMuted: (v: boolean | ((m: boolean) => boolean)) => void;
   shuttleSpeed: number;
   loopPlayback: boolean;
   activeTool: ToolId;
@@ -191,6 +214,9 @@ export interface StudioContextValue {
   aovView: AovViewId;
   zoomPct: number;
   viewportPan: [number, number];
+  viewportStageSize: [number, number];
+  setViewportStageSize: (sz: [number, number]) => void;
+  fitViewportToStage: () => void;
   showSafeZones: boolean;
   showGrid: boolean;
   checkerboard: boolean;
@@ -250,6 +276,12 @@ export interface StudioContextValue {
   undo: () => void;
   redo: () => void;
   jumpToHistoryIndex: (idx: number) => void;
+  copySelectionToClipboard: () => void;
+  pasteClipboard: () => void;
+  reorderLayer: (fromLayerId: string, toIndex: number) => void;
+  moveSelectedLayersZOrder: (delta: -1 | 1) => void;
+  reorderEffectOnLayer: (layerId: string, fromIdx: number, toIdx: number) => void;
+  nudgeSelectedLayersToPlayhead: (edge: 'in' | 'out', trim: boolean) => void;
   loadTemplateProject: (tpl: 'orbital-hero' | 'kinetic-lower-third' | 'vfx-keying' | 'blank') => void;
   openActiveComp: (compId: string) => void;
   createNewComposition: (name: string, width: number, height: number, fps: number, duration: number, bgColor?: string) => void;
@@ -321,11 +353,17 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const initialProject = useMemo(() => createShowcaseProject('orbital-hero'), []);
   const historyRef = useRef(new HistoryManager<Project>(initialProject, 200));
   const globalFileInputRef = useRef<HTMLInputElement | null>(null);
+  const projectRef = useRef<Project>(initialProject);
+  const dirtyRef = useRef<boolean>(false);
+  const clipboardRef = useRef<StudioClipboardPayload | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const [activeView, setActiveViewState] = useState<ActiveAppView>('home');
+  const [updateCheckTrigger, setUpdateCheckTrigger] = useState<number>(0);
   const [desktopAppInfo, setDesktopAppInfo] = useState<DesktopAppRuntimeInfo>({
     name: 'PreEffects',
-    version: '1.0.3',
+    version: '1.0.4',
     platform: typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? 'darwin' : 'web',
     arch: 'arm64',
     electronVersion: '',
@@ -357,8 +395,11 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [project, setProject] = useState<Project>(initialProject);
   const [selectedLayerIds, setSelectedLayerIds] = useState<string[]>(['lyr_hero_title']);
+  const [selectedEffectId, setSelectedEffectId] = useState<string | null>(null);
+  const [selectedKeyframeTarget, setSelectedKeyframeTarget] = useState<SelectedKeyframeTarget | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(1.8);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [audioMuted, setAudioMuted] = useState<boolean>(false);
   const [shuttleSpeed, setShuttleSpeed] = useState<number>(1);
   const [loopPlayback, setLoopPlayback] = useState<boolean>(true);
   const [activeTool, setActiveTool] = useState<ToolId>('selection');
@@ -397,6 +438,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [aovView, setAovView] = useState<AovViewId>('beauty');
   const [zoomPct, setZoomPct] = useState<number>(100);
   const [viewportPan, setViewportPan] = useState<[number, number]>([0, 0]);
+  const [viewportStageSize, setViewportStageSize] = useState<[number, number]>([960, 540]);
   const [showSafeZones, setShowSafeZones] = useState<boolean>(true);
   const [showGrid, setShowGrid] = useState<boolean>(false);
   const [checkerboard, setCheckerboard] = useState<boolean>(false);
@@ -416,6 +458,11 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   });
 
+  // Keep projectRef continuously updated for stable O(1) autosave & audio playback hooks
+  useEffect(() => {
+    projectRef.current = project;
+  }, [project]);
+
   const activeComp = useMemo(
     () => project.compositions.find((c) => c.id === project.activeCompId) ?? project.compositions[0],
     [project],
@@ -426,13 +473,21 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [activeComp, selectedLayerIds],
   );
 
+  // QOL-R4-10: Sync Local Vault recent projects to native Electron File -> Open Recent submenu
+  useEffect(() => {
+    void window.preEffectsDesktop?.syncRecentProjects?.(
+      recentProjects.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt })),
+    );
+  }, [recentProjects]);
+
   // Query desktop Electron runtime metadata (app version, OS, arch, packaging state)
   useEffect(() => {
     if (window.preEffectsDesktop?.getAppInfo) {
       window.preEffectsDesktop
         .getAppInfo()
-        .then((info: Omit<DesktopAppRuntimeInfo, 'isDesktopApp'>) => {
+        .then((info) => {
           setDesktopAppInfo({
+            name: 'PreEffects',
             ...info,
             isDesktopApp: true,
           });
@@ -476,6 +531,18 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setStatusMessage(msg);
   }, []);
 
+  const fitViewportToStage = useCallback(() => {
+    if (!activeComp) return;
+    const [sw, sh] = viewportStageSize;
+    const availW = Math.max(120, sw - 52);
+    const availH = Math.max(120, sh - 52);
+    const scale = Math.min(availW / Math.max(1, activeComp.width), availH / Math.max(1, activeComp.height));
+    const pct = Math.max(12, Math.min(400, Math.floor(scale * 100)));
+    setZoomPct(pct);
+    setViewportPan([0, 0]);
+    notify(`Zoomed stage to Fit (${pct}%)`);
+  }, [activeComp, viewportStageSize, notify]);
+
   const setActiveView = useCallback((v: ActiveAppView) => {
     if (v === 'home') {
       setIsPlaying(false);
@@ -491,14 +558,15 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const saveCurrentToVault = useCallback(
     (filePath?: string) => {
       try {
-        const comp = project.compositions.find((c) => c.id === project.activeCompId) ?? project.compositions[0];
-        const totalLayers = project.compositions.reduce((s, c) => s + c.layers.length, 0);
-        const serializedJson = serializeProjectToPrex(project, { lightweightStorage: true });
+        const cur = projectRef.current;
+        const comp = cur.compositions.find((c) => c.id === cur.activeCompId) ?? cur.compositions[0];
+        const totalLayers = cur.compositions.reduce((s, c) => s + c.layers.length, 0);
+        const serializedJson = serializeProjectToPrex(cur, { lightweightStorage: true });
         const entry: VaultProjectEntry = {
-          id: project.id,
-          name: project.name,
+          id: cur.id,
+          name: cur.name,
           updatedAt: Date.now(),
-          compCount: project.compositions.length,
+          compCount: cur.compositions.length,
           layerCount: totalLayers,
           resolutionLabel: comp ? `${comp.width}×${comp.height}` : '1920×1080',
           fps: comp?.fps ?? 30,
@@ -515,7 +583,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       } catch { /* ignore */ }
     },
-    [project],
+    [],
   );
 
   const openVaultProject = useCallback(
@@ -526,6 +594,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const loaded = deserializePrexProject(target.serializedJson);
         historyRef.current.reset(loaded, `Open "${loaded.name}"`);
         studioRamCache.purgeAll();
+        dirtyRef.current = false;
         setProject(loaded);
         const firstComp = loaded.compositions.find((c) => c.id === loaded.activeCompId) ?? loaded.compositions[0];
         setSelectedLayerIds(firstComp?.layers[0] ? [firstComp.layers[0].id] : []);
@@ -573,7 +642,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     notify('Reset interactive tutorial completion progress');
   }, [notify]);
 
-  // OPT-R3-06 & BUG-R3-13: Render active frame ONLY when in Studio view (0% idle CPU on Home Hub) + pass transparentBackground
+  // Render active frame ONLY when in Studio view (0% idle CPU on Home Hub) + pass transparentBackground
   useEffect(() => {
     if (!activeComp || activeView === 'home') return;
     const effectiveDiv: 1 | 2 | 3 | 4 =
@@ -599,7 +668,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     preferences.adaptiveScrubResolution,
   ]);
 
-  // 60fps requestAnimationFrame playback loop bounded to Work Area (paused automatically on Home Hub)
+  // 60fps requestAnimationFrame playback loop bounded to Work Area
   useEffect(() => {
     if (!isPlaying || !activeComp || activeView === 'home') return;
     let rafId = 0;
@@ -629,29 +698,104 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => cancelAnimationFrame(rafId);
   }, [isPlaying, activeComp, shuttleSpeed, loopPlayback, activeView]);
 
-  // Periodic local-only Autosave (lightweight storage safe)
+  // QOL-R4-09: Real-time WebAudio transport playback synced to active composition audio layers!
+  useEffect(() => {
+    const stopAudio = () => {
+      if (audioSourceRef.current) {
+        try {
+          audioSourceRef.current.stop();
+          audioSourceRef.current.disconnect();
+        } catch { /* ignore */ }
+        audioSourceRef.current = null;
+      }
+    };
+
+    if (!isPlaying || audioMuted || activeView !== 'studio' || !activeComp || shuttleSpeed <= 0) {
+      stopAudio();
+      return;
+    }
+
+    const hasAudibleAudioLayer = activeComp.layers.some(
+      (l) => l.audioEnabled && (l.type === 'audio' || Boolean(l.assetId)),
+    );
+    if (!hasAudibleAudioLayer) {
+      stopAudio();
+      return;
+    }
+
+    const AudioCtxCtor =
+      typeof window !== 'undefined'
+        ? window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+        : undefined;
+    if (!AudioCtxCtor) return;
+
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioCtxCtor();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        void ctx.resume();
+      }
+
+      const workStart = activeComp.workAreaStart;
+      const workEnd = Math.max(workStart + 0.1, activeComp.workAreaEnd || activeComp.duration);
+      const workDur = workEnd - workStart;
+      const sr = ctx.sampleRate || 48000;
+      const samples = mixCompositionAudioSamples(projectRef.current, activeComp, workStart, workDur, sr);
+      const audioBuffer = ctx.createBuffer(1, samples.length, sr);
+      audioBuffer.getChannelData(0).set(samples);
+
+      stopAudio();
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.loop = loopPlayback;
+      source.playbackRate.value = Math.max(0.25, Math.min(4, shuttleSpeed));
+      source.connect(ctx.destination);
+      const offsetInWork = Math.max(0, Math.min(workDur - 0.02, currentTime - workStart));
+      source.start(0, offsetInWork);
+      audioSourceRef.current = source;
+    } catch {
+      // Browser autoplay restriction or headless test env — ignore silently
+    }
+
+    return stopAudio;
+    // Intentionally start/stop on transport state changes rather than every 60fps currentTime tick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, audioMuted, activeView, activeComp, loopPlayback, shuttleSpeed]);
+
+  // OPT-R4-06 Fixed: Single stable Autosave interval reading projectRef + dirtyRef (no timer teardown on edits!)
   useEffect(() => {
     if (!preferences.autoSaveEnabled) return;
     const timer = window.setInterval(() => {
+      if (!dirtyRef.current) return;
       try {
-        const serialized = serializeProjectToPrex(project, { lightweightStorage: true });
+        const cur = projectRef.current;
+        const serialized = serializeProjectToPrex(cur, { lightweightStorage: true });
         localStorage.setItem(AUTOSAVE_KEY, serialized);
-        void window.preEffectsDesktop?.writeAutosaveSnapshot?.(project.id, serialized);
+        void window.preEffectsDesktop?.writeAutosaveSnapshot?.(cur.id, serialized);
+        dirtyRef.current = false;
       } catch {
         // Quota full or private browsing — ignore silently
       }
     }, Math.max(15, preferences.autoSaveIntervalSec) * 1000);
     return () => window.clearInterval(timer);
-  }, [project, preferences.autoSaveEnabled, preferences.autoSaveIntervalSec]);
+  }, [preferences.autoSaveEnabled, preferences.autoSaveIntervalSec]);
 
+  // OPT-R4-01 Fixed: Copy-on-write commitProjectChange — clones ONLY activeCompId and preserves Uint8Array buffers!
   const commitProjectChange = useCallback((label: string, mutator: (draft: Project) => void, coalesceKey?: string) => {
+    dirtyRef.current = true;
     setProject((prev) => {
       const draft: Project = {
         ...prev,
         assets: prev.assets.map((a) => ({ ...a })),
         openCompIds: [...prev.openCompIds],
-        compositions: structuredClone(prev.compositions),
-        renderQueue: structuredClone(prev.renderQueue),
+        compositions: prev.compositions.map((c) => (c.id === prev.activeCompId ? structuredClone(c) : c)),
+        renderQueue: prev.renderQueue.map((rq) => ({
+          ...rq,
+          outputModules: rq.outputModules.map((m) => ({ ...m, aovPasses: [...m.aovPasses] })),
+          renderedArtifacts: rq.renderedArtifacts ? rq.renderedArtifacts.map((art) => ({ ...art })) : undefined,
+        })),
         favoriteEffectIds: [...prev.favoriteEffectIds],
         versionCommits: prev.versionCommits.map((c) => ({ ...c })),
       };
@@ -669,6 +813,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const undo = useCallback(() => {
     const prev = historyRef.current.undo();
     if (prev) {
+      dirtyRef.current = true;
       setProject(prev);
       setHistoryVersion((v) => v + 1);
       notify('Undo applied');
@@ -678,6 +823,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const redo = useCallback(() => {
     const next = historyRef.current.redo();
     if (next) {
+      dirtyRef.current = true;
       setProject(next);
       setHistoryVersion((v) => v + 1);
       notify('Redo applied');
@@ -687,10 +833,199 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const jumpToHistoryIndex = useCallback((idx: number) => {
     const state = historyRef.current.jumpTo(idx);
     if (state) {
+      dirtyRef.current = true;
       setProject(state);
       setHistoryVersion((v) => v + 1);
     }
   }, []);
+
+  // QOL-R4-10: Studio Copy / Paste for Keyframes, Effects, and Layers!
+  const copySelectionToClipboard = useCallback(() => {
+    if (!activeComp) return;
+    if (selectedKeyframeTarget) {
+      const lyr = activeComp.layers.find((l) => l.id === selectedKeyframeTarget.layerId);
+      const prop = lyr?.transform[selectedKeyframeTarget.propKey] as
+        | AnimatableProperty<number | [number, number, number]>
+        | undefined;
+      const kf = prop?.keyframes.find((k) => k.id === selectedKeyframeTarget.keyframeId);
+      if (kf) {
+        clipboardRef.current = {
+          kind: 'keyframe',
+          propKey: selectedKeyframeTarget.propKey,
+          keyframe: structuredClone(kf),
+        };
+        notify(`Copied keyframe on ${selectedKeyframeTarget.propKey}`);
+        return;
+      }
+    }
+    if (selectedEffectId && selectedLayer) {
+      const fx = selectedLayer.effects.find((f) => f.id === selectedEffectId);
+      if (fx) {
+        clipboardRef.current = { kind: 'effect', effect: structuredClone(fx) };
+        notify(`Copied effect "${fx.name}"`);
+        return;
+      }
+    }
+    const layers = activeComp.layers.filter((l) => selectedLayerIds.includes(l.id));
+    if (layers.length > 0) {
+      clipboardRef.current = { kind: 'layers', layers: structuredClone(layers) };
+      notify(`Copied ${layers.length} layer(s) to Studio Clipboard`);
+    }
+  }, [activeComp, selectedKeyframeTarget, selectedEffectId, selectedLayer, selectedLayerIds, notify]);
+
+  const pasteClipboard = useCallback(() => {
+    const payload = clipboardRef.current;
+    if (!payload || !activeComp) return;
+
+    if (payload.kind === 'keyframe') {
+      const targetId = selectedLayerIds[0] ?? activeComp.layers[0]?.id;
+      if (!targetId) return;
+      commitProjectChange(`Paste Keyframe (${payload.propKey})`, (draft) => {
+        const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
+        const lyr = comp?.layers.find((l) => l.id === targetId);
+        if (!lyr) return;
+        const prop = lyr.transform[payload.propKey] as AnimatableProperty<number | [number, number, number]>;
+        prop.animated = true;
+        prop.keyframes = prop.keyframes.filter((k) => Math.abs(k.time - currentTime) >= 0.015);
+        prop.keyframes.push({
+          ...structuredClone(payload.keyframe),
+          id: createId('kf'),
+          time: Number(currentTime.toFixed(3)),
+        });
+        prop.keyframes.sort((a, b) => a.time - b.time);
+      });
+      notify(`Pasted keyframe on ${payload.propKey} at ${currentTime.toFixed(2)}s`);
+      return;
+    }
+
+    if (payload.kind === 'effect') {
+      const targetId = selectedLayerIds[0] ?? activeComp.layers[0]?.id;
+      if (!targetId) return;
+      const newFxId = createId('fx');
+      commitProjectChange(`Paste Effect "${payload.effect.name}"`, (draft) => {
+        const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
+        const lyr = comp?.layers.find((l) => l.id === targetId);
+        if (!lyr) return;
+        lyr.effects.push({
+          ...structuredClone(payload.effect),
+          id: newFxId,
+        });
+      });
+      setSelectedEffectId(newFxId);
+      notify(`Pasted effect "${payload.effect.name}"`);
+      return;
+    }
+
+    if (payload.kind === 'layers') {
+      const newIds: string[] = [];
+      commitProjectChange(`Paste ${payload.layers.length} Layer(s)`, (draft) => {
+        const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
+        if (!comp) return;
+        const clones = payload.layers.map((src) => {
+          const nid = createId('lyr');
+          newIds.push(nid);
+          return {
+            ...structuredClone(src),
+            id: nid,
+            name: `${src.name} Copy`,
+            parentId: comp.layers.some((l) => l.id === src.parentId) ? src.parentId : undefined,
+            trackMatteLayerId: undefined,
+            trackMatteMode: 'none' as const,
+          };
+        });
+        comp.layers.unshift(...clones);
+      });
+      if (newIds.length > 0) setSelectedLayerIds(newIds);
+      notify(`Pasted ${payload.layers.length} layer(s)`);
+    }
+  }, [activeComp, selectedLayerIds, currentTime, commitProjectChange, notify]);
+
+  // QOL-R4-07: Layer z-order & Effect stack reordering
+  const reorderLayer = useCallback(
+    (fromLayerId: string, toIndex: number) => {
+      commitProjectChange('Reorder Layer Stack', (draft) => {
+        const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
+        if (!comp) return;
+        const fromIdx = comp.layers.findIndex((l) => l.id === fromLayerId);
+        if (fromIdx < 0) return;
+        const clampedTo = Math.max(0, Math.min(comp.layers.length - 1, toIndex));
+        if (fromIdx === clampedTo) return;
+        const [moved] = comp.layers.splice(fromIdx, 1);
+        comp.layers.splice(clampedTo, 0, moved);
+      });
+    },
+    [commitProjectChange],
+  );
+
+  const moveSelectedLayersZOrder = useCallback(
+    (delta: -1 | 1) => {
+      if (selectedLayerIds.length === 0) return;
+      commitProjectChange(delta < 0 ? 'Bring Layer Forward' : 'Send Layer Backward', (draft) => {
+        const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
+        if (!comp) return;
+        const indices = selectedLayerIds
+          .map((id) => comp.layers.findIndex((l) => l.id === id))
+          .filter((idx) => idx >= 0)
+          .sort((a, b) => (delta < 0 ? a - b : b - a));
+        for (const idx of indices) {
+          const target = idx + delta;
+          if (target >= 0 && target < comp.layers.length) {
+            const tmp = comp.layers[idx];
+            comp.layers[idx] = comp.layers[target];
+            comp.layers[target] = tmp;
+          }
+        }
+      });
+    },
+    [selectedLayerIds, commitProjectChange],
+  );
+
+  const reorderEffectOnLayer = useCallback(
+    (layerId: string, fromIdx: number, toIdx: number) => {
+      commitProjectChange('Reorder Effect Stack', (draft) => {
+        const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
+        const lyr = comp?.layers.find((l) => l.id === layerId);
+        if (!lyr || fromIdx < 0 || fromIdx >= lyr.effects.length) return;
+        const clamped = Math.max(0, Math.min(lyr.effects.length - 1, toIdx));
+        if (fromIdx === clamped) return;
+        const [moved] = lyr.effects.splice(fromIdx, 1);
+        lyr.effects.splice(clamped, 0, moved);
+      });
+    },
+    [commitProjectChange],
+  );
+
+  // QOL-R4-02: [ / ] / Alt+[ / Alt+] timeline slip & trim shortcuts
+  const nudgeSelectedLayersToPlayhead = useCallback(
+    (edge: 'in' | 'out', trim: boolean) => {
+      if (selectedLayerIds.length === 0 || !activeComp) return;
+      const minDur = 1 / Math.max(1, activeComp.fps);
+      commitProjectChange(
+        trim ? `Trim Layer ${edge === 'in' ? 'In' : 'Out'} to Playhead` : `Move Layer ${edge === 'in' ? 'In' : 'Out'} to Playhead`,
+        (draft) => {
+          const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
+          if (!comp) return;
+          for (const lyr of comp.layers) {
+            if (!selectedLayerIds.includes(lyr.id) || lyr.locked) continue;
+            if (trim) {
+              if (edge === 'in') {
+                lyr.inPoint = Math.max(0, Math.min(lyr.outPoint - minDur, currentTime));
+              } else {
+                lyr.outPoint = Math.min(comp.duration, Math.max(lyr.inPoint + minDur, currentTime));
+              }
+            } else {
+              const dur = lyr.outPoint - lyr.inPoint;
+              const delta = edge === 'in' ? currentTime - lyr.inPoint : currentTime - lyr.outPoint;
+              lyr.startTime += delta;
+              lyr.inPoint = edge === 'in' ? currentTime : currentTime - dur;
+              lyr.outPoint = lyr.inPoint + dur;
+            }
+          }
+        },
+      );
+    },
+    [selectedLayerIds, activeComp, currentTime, commitProjectChange],
+  );
 
   const setActiveWorkspace = useCallback((ws: WorkspaceId) => {
     setActiveWorkspaceState(ws);
@@ -737,6 +1072,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const next = createShowcaseProject(tpl);
     historyRef.current.reset(next);
     studioRamCache.purgeAll();
+    dirtyRef.current = false;
     setProject(next);
     setSelectedLayerIds(next.compositions[0]?.layers[0] ? [next.compositions[0].layers[0].id] : []);
     setCurrentTime(tpl === 'blank' ? 0 : 1.2);
@@ -745,7 +1081,6 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     notify(`Loaded template: ${next.name}`);
   }, [setActiveView, notify]);
 
-  // BUG-R3-09 Fixed: Clamp playhead and select valid layer when switching active compositions
   const openActiveComp = useCallback((compId: string) => {
     setProject((prev) => {
       const targetComp = prev.compositions.find((c) => c.id === compId);
@@ -818,7 +1153,15 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     commitProjectChange('Delete Selected Layer(s)', (draft) => {
       const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
       if (!comp) return;
-      comp.layers = comp.layers.filter((l) => !selectedLayerIds.includes(l.id) || l.locked);
+      const removed = new Set(comp.layers.filter((l) => selectedLayerIds.includes(l.id) && !l.locked).map((l) => l.id));
+      comp.layers = comp.layers
+        .filter((l) => !removed.has(l.id))
+        .map((l) => ({
+          ...l,
+          parentId: l.parentId && removed.has(l.parentId) ? undefined : l.parentId,
+          trackMatteLayerId: l.trackMatteLayerId && removed.has(l.trackMatteLayerId) ? undefined : l.trackMatteLayerId,
+          trackMatteMode: l.trackMatteLayerId && removed.has(l.trackMatteLayerId) ? 'none' : l.trackMatteMode,
+        }));
     });
     setSelectedLayerIds([]);
     notify('Deleted selected layer(s)');
@@ -863,6 +1206,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     notify('Split layer at current time indicator');
   }, [selectedLayerIds, currentTime, commitProjectChange, notify]);
 
+  // BUG-R4-07 Fixed: Sanitize cross-boundary parentId & trackMatteLayerId on both extracted & remaining layers!
   const precomposeSelectedLayers = useCallback((customName?: string) => {
     if (selectedLayerIds.length === 0 || !activeComp) return;
     const preId = createId('comp');
@@ -870,13 +1214,26 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     commitProjectChange(`Pre-compose "${preName}"`, (draft) => {
       const comp = draft.compositions.find((c) => c.id === draft.activeCompId);
       if (!comp) return;
-      const extracted = comp.layers.filter((l) => selectedLayerIds.includes(l.id));
-      if (extracted.length === 0) return;
+      const extractedRaw = comp.layers.filter((l) => selectedLayerIds.includes(l.id));
+      if (extractedRaw.length === 0) return;
+      const extractedSet = new Set(extractedRaw.map((l) => l.id));
+
+      const sanitizedExtracted = extractedRaw.map((l) => {
+        const validParent = l.parentId && extractedSet.has(l.parentId) ? l.parentId : undefined;
+        const validMatte = l.trackMatteLayerId && extractedSet.has(l.trackMatteLayerId) ? l.trackMatteLayerId : undefined;
+        return {
+          ...structuredClone(l),
+          parentId: validParent,
+          trackMatteLayerId: validMatte,
+          trackMatteMode: validMatte || !l.trackMatteLayerId ? l.trackMatteMode : 'none',
+        };
+      });
+
       const subComp: Composition = {
         ...structuredClone(comp),
         id: preId,
         name: preName,
-        layers: extracted,
+        layers: sanitizedExtracted,
       };
       draft.compositions.push(subComp);
       const preLayer: Layer = {
@@ -894,8 +1251,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         frameBlending: 'off',
         motionBlur: false,
         threeD: false,
-        inPoint: Math.min(...extracted.map((e) => e.inPoint)),
-        outPoint: Math.max(...extracted.map((e) => e.outPoint)),
+        inPoint: Math.min(...sanitizedExtracted.map((e) => e.inPoint)),
+        outPoint: Math.max(...sanitizedExtracted.map((e) => e.outPoint)),
         startTime: 0,
         stretchPct: 100,
         blendMode: 'normal',
@@ -907,7 +1264,19 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         puppetPins: [],
         markers: [],
       };
-      comp.layers = [preLayer, ...comp.layers.filter((l) => !selectedLayerIds.includes(l.id))];
+      const remaining = comp.layers
+        .filter((l) => !extractedSet.has(l.id))
+        .map((l) => {
+          const validParent = l.parentId && !extractedSet.has(l.parentId) ? l.parentId : undefined;
+          const validMatte = l.trackMatteLayerId && !extractedSet.has(l.trackMatteLayerId) ? l.trackMatteLayerId : undefined;
+          return {
+            ...l,
+            parentId: validParent,
+            trackMatteLayerId: validMatte,
+            trackMatteMode: validMatte || !l.trackMatteLayerId ? l.trackMatteMode : 'none',
+          };
+        });
+      comp.layers = [preLayer, ...remaining];
     });
     notify(`Pre-composed ${selectedLayerIds.length} layer(s) into "${preName}"`);
   }, [selectedLayerIds, activeComp, project.compositions.length, commitProjectChange, notify]);
@@ -925,6 +1294,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (lyr) lyr.effects.push(inst);
     });
     setSelectedLayerIds([targetLayer.id]);
+    setSelectedEffectId(inst.id);
     setRightTab('inspector');
     notify(`Applied "${inst.name}" to ${targetLayer.name}`);
   }, [selectedLayer, activeComp, commitProjectChange, notify]);
@@ -1027,45 +1397,63 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   }, [commitProjectChange]);
 
+  // BUG-R4-07 Fixed: Default Render Queue endFrame to full Composition Work Area (not truncated 15 frames!)
   const addCurrentCompToRenderQueue = useCallback(() => {
     if (!activeComp) return;
+    const startF = Math.round(activeComp.workAreaStart * activeComp.fps);
+    const fullWorkEndF = Math.max(
+      startF,
+      Math.round((activeComp.workAreaEnd || activeComp.duration) * activeComp.fps) - 1,
+    );
     commitProjectChange('Add Composition to Render Queue', (draft) => {
       draft.renderQueue.push({
         id: createId('rq'),
         compId: activeComp.id,
         status: 'queued',
         quality: 'best',
-        resolutionDivisor: 4,
+        resolutionDivisor: 2,
         useProxies: false,
-        startFrame: Math.round(activeComp.workAreaStart * activeComp.fps),
-        endFrame: Math.min(Math.round(activeComp.workAreaStart * activeComp.fps) + 15, Math.round(activeComp.workAreaEnd * activeComp.fps)),
+        startFrame: startF,
+        endFrame: fullWorkEndF,
         progressPct: 0,
         elapsedMs: 0,
         outputModules: [
           {
             id: createId('om'),
-            format: 'gif',
+            format: 'png-frame',
             channels: 'rgba',
             includeAudio: false,
-            aovPasses: ['beauty', 'z-depth'],
+            aovPasses: ['beauty'],
             outputName: activeComp.name.replace(/\s+/g, '_'),
           },
         ],
       });
     });
     setBottomMode('render-queue');
-    notify(`Added "${activeComp.name}" to Render Queue`);
+    notify(`Added "${activeComp.name}" (frames ${startF}–${fullWorkEndF}) to Render Queue`);
   }, [activeComp, commitProjectChange, notify]);
 
   const runAllQueuedRenders = useCallback(() => {
-    commitProjectChange('Execute Render Queue', (draft) => {
-      draft.renderQueue = draft.renderQueue.map((item) =>
-        item.status === 'queued' || item.status === 'failed'
-          ? executeRenderQueueJob(item, draft)
-          : item,
-      );
-    });
-    notify('Render Queue batch finished — click Download on any output module');
+    void (async () => {
+      const snap = projectRef.current;
+      const queued = snap.renderQueue.filter((i) => i.status === 'queued' || i.status === 'failed');
+      if (queued.length === 0) {
+        notify('No queued render jobs to run');
+        return;
+      }
+      notify(`Rendering ${queued.length} job(s)...`);
+      const finishedMap = new Map<string, Awaited<ReturnType<typeof executeRenderQueueJobAsync>>>();
+      for (const job of queued) {
+        const res = await executeRenderQueueJobAsync(job, snap, (pct) => {
+          notify(`Rendering "${job.outputModules[0]?.outputName ?? job.id}" — ${pct}%`);
+        });
+        finishedMap.set(job.id, res);
+      }
+      commitProjectChange('Execute Render Queue', (draft) => {
+        draft.renderQueue = draft.renderQueue.map((item) => finishedMap.get(item.id) ?? item);
+      });
+      notify('Render Queue batch finished — click Download on any output module');
+    })();
   }, [commitProjectChange, notify]);
 
   const saveProjectFileLocal = useCallback(async () => {
@@ -1073,12 +1461,14 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const defaultName = project.name.endsWith('.prex') ? project.name : `${project.name}.prex`;
     if (window.preEffectsDesktop?.saveProjectDialog) {
       const res = await window.preEffectsDesktop.saveProjectDialog(defaultName, json);
-      if (!res.canceled && res.filePath) {
+      if (res && !res.canceled && res.filePath) {
+        dirtyRef.current = false;
         saveCurrentToVault(res.filePath);
         notify(`Saved to ${res.filePath}`);
       }
       return;
     }
+    dirtyRef.current = false;
     saveCurrentToVault();
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1099,6 +1489,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const loaded = deserializePrexProject(typeof textOrBytes === 'string' ? textOrBytes : new TextDecoder().decode(textOrBytes));
         historyRef.current.reset(loaded);
         studioRamCache.purgeAll();
+        dirtyRef.current = false;
         setProject(loaded);
         const firstComp = loaded.compositions.find((c) => c.id === loaded.activeCompId) ?? loaded.compositions[0];
         setSelectedLayerIds(firstComp?.layers[0] ? [firstComp.layers[0].id] : []);
@@ -1262,18 +1653,37 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     globalFileInputRef.current?.click();
   }, []);
 
-  // BUG-R3-04 Fixed: Open local .prex project via native Electron file dialog on desktop, or file input on web
+  // BUG-R4-03 Fixed: Native Electron dialog returns raw Uint8Array bytes so binary PNG/WAV/JPG + .prex open cleanly!
   const openProjectFileLocal = useCallback(async () => {
     if (window.preEffectsDesktop?.openProjectDialog) {
       const res = await window.preEffectsDesktop.openProjectDialog();
-      if (!res.canceled && res.content) {
-        const fileName = res.filePath.split(/[/\\]/).pop() || 'Project.prex';
-        importLocalFileContent(fileName, res.content);
+      if (res && res.bytes) {
+        const fileName = res.name || res.filePath.split(/[/\\]/).pop() || 'Project.prex';
+        const lower = fileName.toLowerCase();
+        const rawBytes = new Uint8Array(res.bytes);
+        if (
+          lower.endsWith('.prex') ||
+          lower.endsWith('.json') ||
+          lower.endsWith('.obj') ||
+          lower.endsWith('.csv') ||
+          lower.endsWith('.tsv') ||
+          lower.endsWith('.cube') ||
+          lower.endsWith('.edl')
+        ) {
+          importLocalFileContent(fileName, res.content ?? new TextDecoder().decode(rawBytes));
+          return;
+        }
+        if (lower.endsWith('.wav')) {
+          importLocalFileContent(fileName, rawBytes.buffer.slice(rawBytes.byteOffset, rawBytes.byteOffset + rawBytes.byteLength));
+          return;
+        }
+        const fileObj = new File([rawBytes], fileName);
+        await importLocalFile(fileObj);
       }
       return;
     }
     globalFileInputRef.current?.click();
-  }, [importLocalFileContent]);
+  }, [importLocalFileContent, importLocalFile]);
 
   const commitGitSnapshot = useCallback((message: string) => {
     commitProjectChange(`Version Snapshot: ${message}`, (draft) => {
@@ -1308,6 +1718,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const loaded = deserializePrexProject(raw);
       historyRef.current.reset(loaded, 'Recovered Autosave');
       studioRamCache.purgeAll();
+      dirtyRef.current = false;
       setProject(loaded);
       setHasRecoverableAutosave(false);
       setHistoryVersion((v) => v + 1);
@@ -1347,7 +1758,6 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     notify(`Exported Collect Files manifest (${pkg.referencedAssets.length} assets)`);
   }, [project, notify]);
 
-  // Interactive 10-Module Feature Tutorial Helpers
   const setTourStep = useCallback((step: number | null) => {
     setTourStepState(step);
     if (step !== null) {
@@ -1388,7 +1798,6 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     notify('Tutorial paused — reopen anytime from Home (Alt+H), Tutorial button, or F2');
   }, [notify]);
 
-  // Automatic Live Hands-On Challenge Completion Detector
   useEffect(() => {
     if (tourStep === null || activeView !== 'studio') return;
     const step = INTERACTIVE_TUTORIAL_STEPS[tourStep];
@@ -1614,10 +2023,14 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     ],
   );
 
-  // BUG-R3-04 Fixed: Subscribe to Native Electron Menu IPC actions
+  // Subscribe to Native Electron Menu IPC actions (including Open Recent, Copy/Paste, Check for Updates)
   useEffect(() => {
     if (!window.preEffectsDesktop?.onMenuAction) return;
     return window.preEffectsDesktop.onMenuAction((action: string) => {
+      if (action.startsWith('recent:')) {
+        openVaultProject(action.slice('recent:'.length));
+        return;
+      }
       switch (action) {
         case 'view.home':
           setActiveViewState((v) => {
@@ -1640,6 +2053,12 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         case 'edit.redo':
           redo();
           break;
+        case 'edit.copy':
+          copySelectionToClipboard();
+          break;
+        case 'edit.paste':
+          pasteClipboard();
+          break;
         case 'comp.new':
           setActiveView('studio');
           setActiveModal('new-comp');
@@ -1655,14 +2074,22 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setActiveView('studio');
           setActiveModal('guide');
           break;
+        case 'help.checkUpdates':
+          setIsPlaying(false);
+          setActiveViewState('home');
+          setUpdateCheckTrigger((c) => c + 1);
+          break;
       }
     });
   }, [
+    openVaultProject,
     loadTemplateProject,
     openProjectFileLocal,
     saveProjectFileLocal,
     undo,
     redo,
+    copySelectionToClipboard,
+    pasteClipboard,
     setActiveView,
     addCurrentCompToRenderQueue,
     startInteractiveTutorialModule,
@@ -1734,6 +2161,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       e.preventDefault();
       switch (hit.id) {
         case 'playPause': setShuttleSpeed(1); setIsPlaying((p) => !p); break;
+        case 'muteAudio': setAudioMuted((m) => !m); break;
         case 'shuttleRev': setShuttleSpeed(-1); setIsPlaying(true); break;
         case 'shuttleStop': setIsPlaying(false); setShuttleSpeed(1); break;
         case 'shuttleFwd': setShuttleSpeed((prev) => (isPlaying && prev > 0 ? Math.min(4, prev * 2) : 1)); setIsPlaying(true); break;
@@ -1761,6 +2189,8 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           break;
         case 'undo': undo(); break;
         case 'redo': redo(); break;
+        case 'copyItem': copySelectionToClipboard(); break;
+        case 'pasteItem': pasteClipboard(); break;
         case 'deleteLayer': deleteSelectedLayers(); break;
         case 'saveProject': void saveProjectFileLocal(); break;
         case 'importAsset': triggerImportDialog(); break;
@@ -1785,6 +2215,12 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         case 'duplicateLayer': duplicateSelectedLayers(false); break;
         case 'smartDuplicate': duplicateSelectedLayers(true); break;
         case 'precompose': precomposeSelectedLayers(); break;
+        case 'moveLayerUp': moveSelectedLayersZOrder(-1); break;
+        case 'moveLayerDown': moveSelectedLayersZOrder(1); break;
+        case 'nudgeLayerIn': nudgeSelectedLayersToPlayhead('in', false); break;
+        case 'nudgeLayerOut': nudgeSelectedLayersToPlayhead('out', false); break;
+        case 'trimLayerIn': nudgeSelectedLayersToPlayhead('in', true); break;
+        case 'trimLayerOut': nudgeSelectedLayersToPlayhead('out', true); break;
         case 'easyEase': applyKeyframeAssistant('easy-ease'); break;
         case 'revealKeyframes': setBottomMode((m) => (m === 'graph' ? 'timeline' : 'graph')); break;
         case 'revealPos': toggleKeyframeOnTransform('position'); break;
@@ -1794,6 +2230,7 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         case 'toggleNodeView': setBottomMode((m) => (m === 'nodes' ? 'timeline' : 'nodes')); break;
         case 'addRenderQueue': addCurrentCompToRenderQueue(); break;
         case 'whatsThis': setWhatsThisMode((w) => !w); break;
+        case 'fitViewport': fitViewportToStage(); break;
         case 'takeSnapshot': takeSnapshot(); break;
         case 'toggleWipe': setWipeSplit01((w) => (w > 0.02 ? 0 : 0.5)); break;
         case 'maximizePanel': setActiveWorkspaceState((w) => (w === 'minimal' ? 'standard' : 'minimal')); break;
@@ -1804,8 +2241,10 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [
     shortcuts, activeView, activeModal, whatsThisMode, activeHelpId, activeComp, currentTime, isPlaying, tourStep,
     setActiveView, startInteractiveTutorialModule,
-    undo, redo, deleteSelectedLayers, saveProjectFileLocal, triggerImportDialog, addLayerOfType,
+    undo, redo, copySelectionToClipboard, pasteClipboard, deleteSelectedLayers,
+    saveProjectFileLocal, triggerImportDialog, addLayerOfType,
     splitSelectedLayersAtPlayhead, duplicateSelectedLayers, precomposeSelectedLayers,
+    moveSelectedLayersZOrder, nudgeSelectedLayersToPlayhead, fitViewportToStage,
     applyKeyframeAssistant, toggleKeyframeOnTransform, addCurrentCompToRenderQueue, takeSnapshot,
     commitProjectChange,
   ]);
@@ -1835,12 +2274,19 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     openVaultProject,
     deleteVaultProject,
     openProjectFileLocal,
+    updateCheckTrigger,
     project,
     activeComp,
     selectedLayerIds,
     selectedLayer,
+    selectedEffectId,
+    setSelectedEffectId,
+    selectedKeyframeTarget,
+    setSelectedKeyframeTarget,
     currentTime,
     isPlaying,
+    audioMuted,
+    setAudioMuted,
     shuttleSpeed,
     loopPlayback,
     activeTool,
@@ -1856,6 +2302,9 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     aovView,
     zoomPct,
     viewportPan,
+    viewportStageSize,
+    setViewportStageSize,
+    fitViewportToStage,
     showSafeZones,
     showGrid,
     checkerboard,
@@ -1913,6 +2362,12 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     undo,
     redo,
     jumpToHistoryIndex,
+    copySelectionToClipboard,
+    pasteClipboard,
+    reorderLayer,
+    moveSelectedLayersZOrder,
+    reorderEffectOnLayer,
+    nudgeSelectedLayersToPlayhead,
     loadTemplateProject,
     openActiveComp,
     createNewComposition,

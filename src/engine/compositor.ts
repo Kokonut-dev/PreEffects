@@ -1,5 +1,5 @@
 import { Composition, Layer, LayerType, Project } from './types';
-import { clamp, degToRad } from '../utils/math';
+import { clamp, Mat4 } from '../utils/math';
 import { parseHexColor } from '../utils/color';
 import { fnv1aHash, globalBufferPool, LruFrameCache } from '../utils/bufferPool';
 import { evaluateProperty } from './expressions';
@@ -50,6 +50,7 @@ export interface RenderFrameOptions {
 export const studioRamCache = new LruFrameCache(512);
 void (null as unknown as LayerType);
 
+// BUG-R4-01 Fixed: Exact 4x4 world-matrix + 3D perspective + multi-level parent rotation/scale/pivot inverse-affine rasterizer
 function transformLayerPixels2D3D(
   src: Uint8ClampedArray,
   dst: Uint8ClampedArray,
@@ -65,63 +66,56 @@ function transformLayerPixels2D3D(
   const worldMat = computeLayerWorldMatrix(layer, comp, time, project);
   const compCx = comp.width / 2;
   const compCy = comp.height / 2;
-  const worldCenter = [worldMat[12], worldMat[13], worldMat[14]] as [number, number, number];
+  const worldCenter = Mat4.transformPoint(worldMat, compCx, compCy, 0);
 
-  // Camera perspective projection factor
   let perspScale = 1;
-  let camOffsetX = 0;
-  let camOffsetY = 0;
+  let camPos: [number, number, number] | null = null;
   if (layer.threeD && activeCamera?.cameraSettings) {
-    const camPos = evaluateProperty(activeCamera.transform.position, time, activeCamera, comp, project).value;
+    camPos = evaluateProperty(activeCamera.transform.position, time, activeCamera, comp, project).value;
     const focalPx = (activeCamera.cameraSettings.focalLengthMm / 36) * comp.width;
     const relZ = Math.max(80, worldCenter[2] - (camPos[2] || -focalPx));
     perspScale = focalPx / relZ;
-    camOffsetX = (compCx - camPos[0]) * perspScale;
-    camOffsetY = (compCy - camPos[1]) * perspScale;
   }
 
-  const posX = (worldCenter[0] + camOffsetX) * scaleFactor;
-  const posY = (worldCenter[1] + camOffsetY) * scaleFactor;
-  const scl = evaluateProperty(layer.transform.scale, time, layer, comp, project).value;
-  const rz = evaluateProperty(layer.transform.rotationZ, time, layer, comp, project).value;
-  const sx = Math.max(0.02, (scl[0] / 100) * perspScale);
-  const sy = Math.max(0.02, (scl[1] / 100) * perspScale);
+  // Forward 2x2 + translation mapping buffer pixel (rx, ry) -> destination buffer pixel (dx, dy)
+  const a00 = worldMat[0] * perspScale;
+  const a01 = worldMat[4] * perspScale;
+  const a10 = worldMat[1] * perspScale;
+  const a11 = worldMat[5] * perspScale;
+  const tx = (camPos ? compCx + (worldMat[12] - camPos[0]) * perspScale : worldMat[12]) * scaleFactor;
+  const ty = (camPos ? compCy + (worldMat[13] - camPos[1]) * perspScale : worldMat[13]) * scaleFactor;
 
-  // Fast identity shortcut (most full-frame Solids, Footage, Precomps at [960,540], scale 100%, rot 0)
+  // Fast identity shortcut (full-frame Solids, Footage, Precomps at [compCx, compCy], scale 100%, rot 0)
   if (
-    Math.abs(posX - w / 2) < 0.75 &&
-    Math.abs(posY - h / 2) < 0.75 &&
-    Math.abs(sx - 1) < 0.005 &&
-    Math.abs(sy - 1) < 0.005 &&
-    Math.abs(rz % 360) < 0.05
+    Math.abs(a00 - 1) < 0.004 &&
+    Math.abs(a11 - 1) < 0.004 &&
+    Math.abs(a01) < 0.004 &&
+    Math.abs(a10) < 0.004 &&
+    Math.abs(tx) < 0.75 &&
+    Math.abs(ty) < 0.75
   ) {
     dst.set(src);
     return worldCenter;
   }
 
-  const rad = -degToRad(rz);
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const anc = evaluateProperty(layer.transform.anchorPoint, time, layer, comp, project).value;
-  const ancX = anc[0] * scaleFactor;
-  const ancY = anc[1] * scaleFactor;
+  const det = a00 * a11 - a01 * a10;
+  if (Math.abs(det) < 1e-6) {
+    // Degenerate / edge-on 90-deg 3D plane projects to zero area
+    return worldCenter;
+  }
+  const invDet = 1 / det;
+  const dRxDx = a11 * invDet;
+  const dRxDy = -a01 * invDet;
+  const dRyDx = -a10 * invDet;
+  const dRyDy = a00 * invDet;
 
-  // Incremental inverse-affine scanline stepping + 32-bit word pixel moves + tight AABB scissor
-  const dRxDx = cos / sx;
-  const dRxDy = -sin / sx;
-  const dRyDx = sin / sy;
-  const dRyDy = cos / sy;
-
-  // Forward-project the 4 source corners [0,0], [w,0], [0,h], [w,h] to scissor destination bounds
-  const fCos = Math.cos(-rad);
-  const fSin = Math.sin(-rad);
+  // Forward-project the 4 source buffer corners [0,0], [w,0], [0,h], [w,h] for tight AABB scissor
   const cCorners: Array<[number, number]> = [[0, 0], [w, 0], [0, h], [w, h]];
   let minX = w, maxX = 0, minY = h, maxY = 0;
   for (let c = 0; c < 4; c++) {
-    const lx = (cCorners[c][0] - ancX) * sx;
-    const ly = (cCorners[c][1] - ancY) * sy;
-    const wx = posX + lx * fCos - ly * fSin;
-    const wy = posY + lx * fSin + ly * fCos;
+    const cx = cCorners[c][0], cy = cCorners[c][1];
+    const wx = a00 * cx + a01 * cy + tx;
+    const wy = a10 * cx + a11 * cy + ty;
     if (wx < minX) minX = wx;
     if (wx > maxX) maxX = wx;
     if (wy < minY) minY = wy;
@@ -131,23 +125,26 @@ function transformLayerPixels2D3D(
   const x1 = Math.min(w - 1, Math.ceil(maxX) + 1);
   const y0 = Math.max(0, Math.floor(minY) - 1);
   const y1 = Math.min(h - 1, Math.ceil(maxY) + 1);
+  if (x0 > x1 || y0 > y1) return worldCenter;
 
   const src32 = new Uint32Array(src.buffer, src.byteOffset, w * h);
   const dst32 = new Uint32Array(dst.buffer, dst.byteOffset, w * h);
 
   for (let y = y0; y <= y1; y++) {
-    const dy = y - posY;
-    const dx0 = x0 - posX;
-    let rx = dx0 * dRxDx + dy * dRxDy + ancX + 0.5;
-    let ry = dx0 * dRyDx + dy * dRyDy + ancY + 0.5;
+    const py = y + 0.5 - ty;
+    const px0 = x0 + 0.5 - tx;
+    let rx = px0 * dRxDx + py * dRxDy;
+    let ry = px0 * dRyDx + py * dRyDy;
     const rowOff = y * w;
     for (let x = x0; x <= x1; x++) {
-      const ix = rx | 0;
-      const iy = ry | 0;
-      if (ix >= 0 && ix < w && iy >= 0 && iy < h && rx >= 0 && ry >= 0) {
-        const px = src32[iy * w + ix];
-        if ((px >>> 24) !== 0) {
-          dst32[rowOff + x] = px;
+      if (rx >= 0 && ry >= 0) {
+        const ix = rx | 0;
+        const iy = ry | 0;
+        if (ix < w && iy < h) {
+          const px = src32[iy * w + ix];
+          if ((px >>> 24) !== 0) {
+            dst32[rowOff + x] = px;
+          }
         }
       }
       rx += dRxDx;
@@ -155,6 +152,102 @@ function transformLayerPixels2D3D(
     }
   }
   return worldCenter;
+}
+
+// BUG-R4-04 Fixed: Complete recursive signature builder covering curve tangents/slopes, animated fx params, text animators & precomps
+function computeCompSignature(
+  comp: Composition,
+  project: Project | undefined,
+  visited = new Set<string>(),
+): string {
+  if (visited.has(comp.id)) return comp.id;
+  visited.add(comp.id);
+  let sig = `${comp.id}|${comp.width}x${comp.height}|${comp.backgroundColor}|${comp.motionBlurEnabled ? 1 : 0}|${comp.shutterAngle}`;
+  for (let i = 0; i < comp.layers.length; i++) {
+    const l = comp.layers[i];
+    const tr = l.transform;
+    const asset = l.assetId ? project?.assets.find((a) => a.id === l.assetId) : undefined;
+    sig += `;${l.id}:${l.visible ? 1 : 0}:${l.solo ? 1 : 0}:${l.threeD ? 1 : 0}:${l.motionBlur ? 1 : 0}:${l.inPoint}:${l.outPoint}:${l.startTime}:${l.stretchPct}:${l.parentId ?? ''}:${l.blendMode}:${l.trackMatteMode}:${l.trackMatteLayerId ?? ''}:${l.solidColor ?? ''}:${l.assetId ?? ''}:${asset?.missing ? 1 : 0}`;
+    sig += `:${tr.anchorPoint.value[0]},${tr.anchorPoint.value[1]},${tr.anchorPoint.value[2]}`;
+    sig += `:${tr.position.value[0]},${tr.position.value[1]},${tr.position.value[2]}`;
+    sig += `:${tr.scale.value[0]},${tr.scale.value[1]},${tr.scale.value[2]}`;
+    sig += `:${tr.rotationX.value},${tr.rotationY.value},${tr.rotationZ.value}:${tr.orientation[0]},${tr.orientation[1]},${tr.orientation[2]}`;
+    sig += `:${tr.opacity.value}`;
+    sig += `:${tr.position.expressionEnabled ? tr.position.expression : ''}:${tr.scale.expressionEnabled ? tr.scale.expression : ''}:${tr.rotationZ.expressionEnabled ? tr.rotationZ.expression : ''}:${tr.opacity.expressionEnabled ? tr.opacity.expression : ''}:${tr.anchorPoint.expressionEnabled ? tr.anchorPoint.expression : ''}`;
+
+    const appendKfs = (tag: string, prop: { animated: boolean; keyframes: Array<{ time: number; value: unknown; interpolation: string; inInfluence?: number; outInfluence?: number; inSlope?: number; outSlope?: number }> }) => {
+      if (!prop.animated || prop.keyframes.length === 0) return;
+      for (let ki = 0; ki < prop.keyframes.length; ki++) {
+        const kf = prop.keyframes[ki];
+        const vStr = Array.isArray(kf.value) ? kf.value.join(',') : String(kf.value);
+        sig += `@${tag}${kf.time},${vStr},${kf.interpolation},${kf.inInfluence ?? ''},${kf.outInfluence ?? ''},${kf.inSlope ?? ''},${kf.outSlope ?? ''}`;
+      }
+    };
+    appendKfs('p', tr.position);
+    appendKfs('s', tr.scale);
+    appendKfs('rz', tr.rotationZ);
+    appendKfs('rx', tr.rotationX);
+    appendKfs('ry', tr.rotationY);
+    appendKfs('a', tr.anchorPoint);
+    appendKfs('o', tr.opacity);
+
+    if (l.textData) {
+      sig += `:T(${l.textData.text}|${l.textData.fontFamily}|${l.textData.fontWeight}|${l.textData.fontStyle}|${l.textData.fontSize}|${l.textData.tracking}|${l.textData.leading}|${l.textData.align}|${l.textData.fillColor}|${l.textData.strokeColor}|${l.textData.strokeWidth}|${l.textData.allCaps ? 1 : 0})`;
+      for (let ai = 0; ai < l.textData.animators.length; ai++) {
+        const an = l.textData.animators[ai];
+        sig += `%${an.selectorType},${an.start},${an.end},${an.offset},${an.positionOffset.join(',')},${an.scaleOffset.join(',')},${an.rotationOffset},${an.opacityOffset},${an.trackingOffset}`;
+      }
+    }
+    if (l.shapeContent) {
+      sig += `:S(${l.shapeContent.kind}|${l.shapeContent.width}|${l.shapeContent.height}|${l.shapeContent.fillType}|${l.shapeContent.fillColor}|${l.shapeContent.fillColorEnd ?? ''}|${l.shapeContent.fillOpacity}|${l.shapeContent.strokeColor}|${l.shapeContent.strokeWidth}|${l.shapeContent.operators.length})`;
+      for (let oi = 0; oi < l.shapeContent.operators.length; oi++) {
+        const op = l.shapeContent.operators[oi];
+        sig += `#${op.type}:${op.enabled ? 1 : 0}:${JSON.stringify(op.params)}`;
+      }
+    }
+    if (l.cameraSettings) {
+      sig += `:C(${l.cameraSettings.focalLengthMm}|${l.cameraSettings.depthOfField ? 1 : 0}|${l.cameraSettings.focusDistance}|${l.cameraSettings.aperture}|${l.cameraSettings.blurLevel})`;
+    }
+    if (l.lightSettings) {
+      sig += `:L(${l.lightSettings.lightType}|${l.lightSettings.color}|${l.lightSettings.intensity})`;
+    }
+    if (l.type === 'precomp' && l.precompId && project) {
+      const sub = project.compositions.find((c) => c.id === l.precompId);
+      if (sub) sig += `:PC(${fnv1aHash(computeCompSignature(sub, project, new Set(visited)))})`;
+    }
+    sig += `:P(${l.paintStrokes.length}):PP(${l.puppetPins.length}):R(${l.rotoMatteEnabled ? 1 : 0},${l.rotoForegroundSeeds?.length ?? 0},${l.rotoBackgroundSeeds?.length ?? 0}):M(${l.masks.length})`;
+    for (let psi = 0; psi < l.paintStrokes.length; psi++) {
+      const ps = l.paintStrokes[psi];
+      const lastPt = ps.points[ps.points.length - 1];
+      sig += `!${ps.tool}:${ps.color}:${ps.radius}:${ps.opacity}:${ps.points.length}:${lastPt ? `${Math.round(lastPt[0])},${Math.round(lastPt[1])}` : ''}`;
+    }
+    for (let pi = 0; pi < l.puppetPins.length; pi++) {
+      const pin = l.puppetPins[pi];
+      sig += `^${pin.currentX},${pin.currentY}`;
+    }
+    for (let mi = 0; mi < l.masks.length; mi++) {
+      const m = l.masks[mi];
+      sig += `~${m.mode}:${m.inverted ? 1 : 0}:${m.feather}:${m.opacity}:${m.expansion}:${m.vertices.length}`;
+      for (let vi = 0; vi < m.vertices.length; vi++) {
+        sig += `,${Math.round(m.vertices[vi].x)},${Math.round(m.vertices[vi].y)}`;
+      }
+    }
+    for (let fi = 0; fi < l.effects.length; fi++) {
+      const fx = l.effects[fi];
+      sig += `/${fx.id}:${fx.effectId}:${fx.enabled ? 1 : 0}`;
+      for (const pk in fx.params) {
+        const pv = fx.params[pk];
+        sig += `,${pk}=${String(pv.value)}:${pv.expressionEnabled ? pv.expression ?? '' : ''}`;
+        if (pv.animated && pv.keyframes.length > 0) {
+          for (let ki = 0; ki < pv.keyframes.length; ki++) {
+            const k = pv.keyframes[ki];
+            sig += `@${k.time}=${String(k.value)},${k.interpolation}`;
+          }
+        }
+      }
+    }
+  }
+  return sig;
 }
 
 export function renderCompositionFrame(
@@ -176,105 +269,13 @@ export function renderCompositionFrame(
   const chView = options.channelView ?? 'rgb';
   const visitedSet = visitedComps ?? new Set<string>([comp.id]);
 
-  // Comprehensive O(L) cache signature covering transforms, effects & params, masks, colors, and expressions
+  // OPT-R4-05: Support studioRamCache for both root (nestDepth=0) and nested pre-compositions (nestDepth>0)!
   let cacheKey = '';
-  const transBg = Boolean(options.transparentBackground) || chView === 'alpha' || chView === 'alpha-boundary';
-  const shouldCache = options.useCache !== false && !options.roi && nestDepth === 0;
+  const transBg = nestDepth > 0 || Boolean(options.transparentBackground) || chView === 'alpha' || chView === 'alpha-boundary';
+  const shouldCache = options.useCache !== false && !options.roi;
   if (shouldCache) {
-    let sig = `${comp.id}|${frameIndex}|${div}|${aov}|${chView}|${transBg ? 1 : 0}|${comp.backgroundColor}|${comp.motionBlurEnabled ? 1 : 0}|${comp.shutterAngle}`;
-    for (let i = 0; i < comp.layers.length; i++) {
-      const l = comp.layers[i];
-      const tr = l.transform;
-      const asset = l.assetId ? project?.assets.find((a) => a.id === l.assetId) : undefined;
-      sig += `;${l.id}:${l.visible ? 1 : 0}:${l.solo ? 1 : 0}:${l.threeD ? 1 : 0}:${l.motionBlur ? 1 : 0}:${l.inPoint}:${l.outPoint}:${l.startTime}:${l.stretchPct}:${l.parentId ?? ''}:${l.blendMode}:${l.trackMatteMode}:${l.trackMatteLayerId ?? ''}:${l.solidColor ?? ''}:${l.assetId ?? ''}:${asset?.missing ? 1 : 0}`;
-      sig += `:${tr.anchorPoint.value[0]},${tr.anchorPoint.value[1]},${tr.anchorPoint.value[2]},${tr.anchorPoint.keyframes.length}`;
-      sig += `:${tr.position.value[0]},${tr.position.value[1]},${tr.position.value[2]},${tr.position.keyframes.length}`;
-      sig += `:${tr.scale.value[0]},${tr.scale.value[1]},${tr.scale.value[2]},${tr.scale.keyframes.length}`;
-      sig += `:${tr.rotationX.value},${tr.rotationY.value},${tr.rotationZ.value},${tr.rotationZ.keyframes.length}`;
-      sig += `:${tr.opacity.value},${tr.opacity.keyframes.length}`;
-      sig += `:${tr.position.expressionEnabled ? tr.position.expression : ''}:${tr.scale.expressionEnabled ? tr.scale.expression : ''}:${tr.rotationZ.expressionEnabled ? tr.rotationZ.expression : ''}:${tr.opacity.expressionEnabled ? tr.opacity.expression : ''}`;
-      if (tr.position.animated && tr.position.keyframes.length > 0) {
-        for (let ki = 0; ki < tr.position.keyframes.length; ki++) {
-          const kf = tr.position.keyframes[ki];
-          sig += `@p${kf.time},${kf.value[0]},${kf.value[1]},${kf.value[2]},${kf.interpolation}`;
-        }
-      }
-      if (tr.scale.animated && tr.scale.keyframes.length > 0) {
-        for (let ki = 0; ki < tr.scale.keyframes.length; ki++) {
-          const kf = tr.scale.keyframes[ki];
-          sig += `@s${kf.time},${kf.value[0]},${kf.value[1]},${kf.interpolation}`;
-        }
-      }
-      if (tr.rotationZ.animated && tr.rotationZ.keyframes.length > 0) {
-        for (let ki = 0; ki < tr.rotationZ.keyframes.length; ki++) {
-          const kf = tr.rotationZ.keyframes[ki];
-          sig += `@rz${kf.time},${kf.value},${kf.interpolation}`;
-        }
-      }
-      if (tr.rotationX.animated && tr.rotationX.keyframes.length > 0) {
-        for (let ki = 0; ki < tr.rotationX.keyframes.length; ki++) {
-          sig += `@rx${tr.rotationX.keyframes[ki].time},${tr.rotationX.keyframes[ki].value}`;
-        }
-      }
-      if (tr.rotationY.animated && tr.rotationY.keyframes.length > 0) {
-        for (let ki = 0; ki < tr.rotationY.keyframes.length; ki++) {
-          sig += `@ry${tr.rotationY.keyframes[ki].time},${tr.rotationY.keyframes[ki].value}`;
-        }
-      }
-      if (tr.anchorPoint.animated && tr.anchorPoint.keyframes.length > 0) {
-        for (let ki = 0; ki < tr.anchorPoint.keyframes.length; ki++) {
-          const kf = tr.anchorPoint.keyframes[ki];
-          sig += `@a${kf.time},${kf.value[0]},${kf.value[1]}`;
-        }
-      }
-      if (tr.opacity.animated && tr.opacity.keyframes.length > 0) {
-        for (let ki = 0; ki < tr.opacity.keyframes.length; ki++) {
-          const kf = tr.opacity.keyframes[ki];
-          sig += `@o${kf.time},${kf.value},${kf.interpolation}`;
-        }
-      }
-      if (l.textData) {
-        sig += `:T(${l.textData.text}|${l.textData.fontSize}|${l.textData.tracking}|${l.textData.leading}|${l.textData.align}|${l.textData.fillColor}|${l.textData.strokeColor}|${l.textData.strokeWidth}|${l.textData.animators.length})`;
-      }
-      if (l.shapeContent) {
-        sig += `:S(${l.shapeContent.kind}|${l.shapeContent.width}|${l.shapeContent.height}|${l.shapeContent.fillColor}|${l.shapeContent.strokeColor}|${l.shapeContent.strokeWidth}|${l.shapeContent.operators.length})`;
-        for (let oi = 0; oi < l.shapeContent.operators.length; oi++) {
-          const op = l.shapeContent.operators[oi];
-          sig += `#${op.type}:${op.enabled ? 1 : 0}:${JSON.stringify(op.params)}`;
-        }
-      }
-      if (l.cameraSettings) {
-        sig += `:C(${l.cameraSettings.focalLengthMm}|${l.cameraSettings.depthOfField ? 1 : 0}|${l.cameraSettings.focusDistance}|${l.cameraSettings.aperture})`;
-      }
-      if (l.lightSettings) {
-        sig += `:L(${l.lightSettings.lightType}|${l.lightSettings.color}|${l.lightSettings.intensity})`;
-      }
-      sig += `:P(${l.paintStrokes.length}):PP(${l.puppetPins.length}):R(${l.rotoMatteEnabled ? 1 : 0},${l.rotoForegroundSeeds?.length ?? 0},${l.rotoBackgroundSeeds?.length ?? 0}):M(${l.masks.length})`;
-      for (let psi = 0; psi < l.paintStrokes.length; psi++) {
-        const ps = l.paintStrokes[psi];
-        sig += `!${ps.tool}:${ps.color}:${ps.radius}:${ps.opacity}:${ps.points.length}`;
-      }
-      for (let pi = 0; pi < l.puppetPins.length; pi++) {
-        const pin = l.puppetPins[pi];
-        sig += `^${pin.currentX},${pin.currentY}`;
-      }
-      for (let mi = 0; mi < l.masks.length; mi++) {
-        const m = l.masks[mi];
-        sig += `~${m.mode}:${m.inverted ? 1 : 0}:${m.feather}:${m.opacity}:${m.expansion}:${m.vertices.length}`;
-        for (let vi = 0; vi < m.vertices.length; vi++) {
-          sig += `,${Math.round(m.vertices[vi].x)},${Math.round(m.vertices[vi].y)}`;
-        }
-      }
-      for (let fi = 0; fi < l.effects.length; fi++) {
-        const fx = l.effects[fi];
-        sig += `/${fx.id}:${fx.enabled ? 1 : 0}`;
-        for (const pk in fx.params) {
-          const pv = fx.params[pk];
-          sig += `,${pk}=${String(pv.value)}:${pv.animated ? pv.keyframes.length : 0}:${pv.expressionEnabled ? pv.expression ?? '' : ''}`;
-        }
-      }
-    }
-    cacheKey = `${comp.id}_${frameIndex}_${div}_${fnv1aHash(sig)}`;
+    const sig = `${frameIndex}|${div}|${aov}|${chView}|${transBg ? 1 : 0}|${options.isFinalRender ? 1 : 0}|${computeCompSignature(comp, project)}`;
+    cacheKey = `${comp.id}_d${nestDepth}_${frameIndex}_${div}_${fnv1aHash(sig)}`;
     const hit = studioRamCache.get(cacheKey);
     if (hit && hit.width === w && hit.height === h) {
       return {
@@ -321,7 +322,6 @@ export function renderCompositionFrame(
     if (isFullFill) {
       const [sr, sg, sb] = parseHexColor(layer.solidColor ?? (layer.type === 'guide' ? '#38BDF8' : '#2A3448'));
       const fillAlpha = layer.type === 'guide' && !layer.solidColor ? 96 : 255;
-      // Native SIMD 32-bit RGBA word fill (little-endian: A<<24 | B<<16 | G<<8 | R)
       const packed = ((fillAlpha << 24) | (sb << 16) | (sg << 8) | sr) >>> 0;
       new Uint32Array(rawBuf.buffer, rawBuf.byteOffset, w * h).fill(packed);
     } else if (layer.type === 'shape' && layer.shapeContent) {
@@ -333,7 +333,14 @@ export function renderCompositionFrame(
       if (subComp) {
         const nextVisited = new Set(visitedSet);
         nextVisited.add(subComp.id);
-        const subRes = renderCompositionFrame(subComp, localTime, project, { resolutionDivisor: div, useCache: false }, nestDepth + 1, nextVisited);
+        const subRes = renderCompositionFrame(
+          subComp,
+          localTime,
+          project,
+          { resolutionDivisor: div, useCache: options.useCache !== false, isFinalRender: options.isFinalRender },
+          nestDepth + 1,
+          nextVisited,
+        );
         if (subRes.width === w && subRes.height === h) {
           rawBuf.set(subRes.pixels);
         } else {
@@ -453,9 +460,15 @@ export function renderCompositionFrame(
       !layer.transform.position.animated &&
       !layer.transform.position.expressionEnabled &&
       !layer.transform.scale.animated &&
+      !layer.transform.scale.expressionEnabled &&
       !layer.transform.rotationZ.animated &&
+      !layer.transform.rotationZ.expressionEnabled &&
+      !layer.transform.anchorPoint.animated &&
+      !layer.transform.anchorPoint.expressionEnabled &&
       Math.abs(layer.transform.position.value[0] - comp.width / 2) < 0.75 &&
       Math.abs(layer.transform.position.value[1] - comp.height / 2) < 0.75 &&
+      Math.abs(layer.transform.anchorPoint.value[0] - comp.width / 2) < 0.75 &&
+      Math.abs(layer.transform.anchorPoint.value[1] - comp.height / 2) < 0.75 &&
       Math.abs(layer.transform.scale.value[0] - 100) < 0.1 &&
       Math.abs(layer.transform.scale.value[1] - 100) < 0.1 &&
       Math.abs(layer.transform.rotationZ.value % 360) < 0.05 &&
@@ -514,7 +527,6 @@ export function renderCompositionFrame(
     if (layer.type === 'camera' || layer.type === 'light' || layer.type === 'null' || layer.type === 'audio') continue;
     if (options.isFinalRender && layer.type === 'guide') continue;
     if (matteSourceLayerIds.has(layer.id) && !layer.visible) {
-      // Invisible matte source is evaluated on demand when referenced
       continue;
     }
     if (!layer.visible) continue;
@@ -528,7 +540,6 @@ export function renderCompositionFrame(
     if (opacity01 <= 0) continue;
 
     if (layer.type === 'adjustment') {
-      // Adjustment Layer applies its effect stack & masks onto a copy of the composite beneath it!
       if (layer.effects.length > 0) {
         const adjSrc = globalBufferPool.acquire(w * h * 4);
         const adjDst = globalBufferPool.acquire(w * h * 4);
@@ -561,7 +572,6 @@ export function renderCompositionFrame(
       continue;
     }
 
-    // Shutter-Angle Multi-Subframe Motion Blur accumulation (rasterizes static pre-transform content once!)
     let layerBuf: Uint8ClampedArray;
     if (comp.motionBlurEnabled && layer.motionBlur && comp.shutterAngle > 0) {
       const subSamples = 3;
@@ -580,12 +590,11 @@ export function renderCompositionFrame(
         globalBufferPool.release(subBuf);
       }
       if (sharedRaw) globalBufferPool.release(sharedRaw);
-      for (let i = 0; i < layerBuf.length; i++) layerBuf[i] = ((accum[i] * 85 + 128) >> 8); // fast round(x / 3)
+      for (let i = 0; i < layerBuf.length; i++) layerBuf[i] = ((accum[i] * 85 + 128) >> 8);
     } else {
       layerBuf = evaluateSingleLayerBuffer(layer, time);
     }
 
-    // Track Matte Evaluation (referencing any other layer in the comp; guard self-reference!)
     let matteBuf: Uint8ClampedArray | undefined;
     if (layer.trackMatteMode !== 'none' && layer.trackMatteLayerId && layer.trackMatteLayerId !== layer.id) {
       const matteLayer = comp.layers.find((l) => l.id === layer.trackMatteLayerId);
@@ -619,7 +628,6 @@ export function renderCompositionFrame(
           const chk = (((pxIdx % w) >> 3) + (((pxIdx / w) | 0) >> 3)) & 1 ? 38 : 22;
           out[i] = chk; out[i + 1] = chk; out[i + 2] = chk; out[i + 3] = 255;
         } else if (a < 252) {
-          // Highlight semi-transparent matte/roto boundary pixels in vivid magenta
           out[i] = 255; out[i + 1] = 46; out[i + 2] = 166; out[i + 3] = 255;
         } else {
           out[i + 3] = 255;
@@ -684,13 +692,22 @@ export function renderIsolatedLayerFrame(
   if (!target) {
     return renderCompositionFrame(comp, time, project, { resolutionDivisor, transparentBackground: true, useCache: false });
   }
+  // Preserve full ancestor chain so parented layers render in their true world pose
+  const ancestorIds = new Set<string>();
+  let cur: Layer | undefined = target;
+  while (cur?.parentId && !ancestorIds.has(cur.parentId)) {
+    ancestorIds.add(cur.parentId);
+    cur = comp.layers.find((x) => x.id === cur!.parentId);
+  }
   const isolatedComp: Composition = {
     ...comp,
     layers: comp.layers.map((l) =>
       l.id === layerId
         ? { ...l, visible: true, solo: false, masks: [] }
-        : l.type === 'camera' || l.type === 'light' || l.id === target.parentId
+        : l.type === 'camera' || l.type === 'light'
         ? l
+        : ancestorIds.has(l.id)
+        ? { ...l, visible: false, solo: false }
         : { ...l, visible: false, solo: false },
     ),
   };
@@ -700,4 +717,3 @@ export function renderIsolatedLayerFrame(
     useCache: false,
   });
 }
-
