@@ -7,7 +7,8 @@ import { autoTraceAlphaToMask } from '../../engine/masksAndRoto';
 import { synthesizeContentAwareFill, trackFeaturePatchNcc } from '../../engine/trackingAndPaint';
 import { renderCompositionFrame, renderIsolatedLayerFrame } from '../../engine/compositor';
 import { convertAudioSamplesToKeyframes } from '../../engine/animation';
-import { generateSynthAudioBuffer, measureAudioVuDb } from '../../engine/audio';
+import { measureAudioVuDb } from '../../engine/audio';
+import { mixCompositionAudioSamples } from '../../engine/export';
 import { EFFECTS_CATALOG } from '../../effects/registry';
 import {
   executeStudioScript,
@@ -30,6 +31,7 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
   );
   const [pluginRev, setPluginRev] = useState<number>(0);
   const [gitCommitMsg, setGitCommitMsg] = useState<string>('Hero Title Polish v2');
+  const [dragFxIndex, setDragFxIndex] = useState<number | null>(null);
 
   const comp = studio.activeComp;
   const layer = studio.selectedLayer;
@@ -39,10 +41,22 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
     return computeVideoScopes(studio.lastFrameResult.pixels, studio.lastFrameResult.width, studio.lastFrameResult.height, 4);
   }, [studio.rightTab, studio.lastFrameResult]);
 
+  // BUG-R4-08 Fixed: Gate VU meter on visible scripting tab & measure real active audio layers + gain!
   const audioVu = useMemo(() => {
-    const synth = generateSynthAudioBuffer(2, 8000, 124);
-    return measureAudioVuDb(synth, studio.currentTime % 2, 8000);
-  }, [studio.currentTime]);
+    if (studio.rightTab !== 'scripting' || !comp) {
+      return { rmsDb: -60, peakDb: -60 };
+    }
+    const activeAudioLayers = comp.layers.filter(
+      (l) => l.audioEnabled && studio.currentTime >= l.inPoint && studio.currentTime <= l.outPoint && (l.type === 'audio' || Boolean(l.assetId)),
+    );
+    if (activeAudioLayers.length === 0) {
+      return { rmsDb: -60, peakDb: -60 };
+    }
+    const windowSec = 0.2;
+    const startSec = Math.max(0, studio.currentTime - windowSec * 0.5);
+    const mixed = mixCompositionAudioSamples(studio.project, comp, startSec, windowSec, 8000);
+    return measureAudioVuDb(mixed, windowSec * 0.5, 8000);
+  }, [studio.rightTab, comp, studio.project, studio.currentTime]);
 
   const updateTransformScalar = (
     propKey: 'rotationX' | 'rotationY' | 'rotationZ' | 'opacity',
@@ -790,13 +804,36 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                   </button>
                 </div>
 
-                {layer.effects.map((fx) => {
+                {layer.effects.map((fx, fxIdx) => {
                   const timing = studio.lastFrameResult?.effectTimings.find((tm) => tm.effectInstanceId === fx.id);
                   const def = EFFECTS_CATALOG.find((d) => d.id === fx.effectId);
+                  const isSelFx = studio.selectedEffectId === fx.id;
                   return (
-                    <div key={fx.id} className="inspector-card" style={{ gap: 6 }}>
+                    <div
+                      key={fx.id}
+                      draggable
+                      onClick={() => studio.setSelectedEffectId(fx.id)}
+                      onDragStart={(e) => {
+                        setDragFxIndex(fxIdx);
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragFxIndex !== null && dragFxIndex !== fxIdx) {
+                          studio.reorderEffectOnLayer(layer.id, dragFxIndex, fxIdx);
+                        }
+                        setDragFxIndex(null);
+                      }}
+                      onDragEnd={() => setDragFxIndex(null)}
+                      className="inspector-card"
+                      style={{
+                        gap: 6,
+                        borderColor: isSelFx ? 'var(--accent-amber)' : undefined,
+                      }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, cursor: 'grab' }}>
                           <input
                             type="checkbox"
                             checked={fx.enabled}
@@ -810,7 +847,7 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                           />
                           <span>{fx.name}</span>
                         </label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                           {timing && (
                             <span className="badge ok mono">
                               {timing.durationMs.toFixed(2)}ms
@@ -818,9 +855,34 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
                           )}
                           <button
                             className="studio-btn ghost"
+                            style={{ minHeight: 20, padding: '0 4px', fontSize: 10 }}
+                            disabled={fxIdx === 0}
+                            title="Move Effect Up in Stack"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              studio.reorderEffectOnLayer(layer.id, fxIdx, fxIdx - 1);
+                            }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            className="studio-btn ghost"
+                            style={{ minHeight: 20, padding: '0 4px', fontSize: 10 }}
+                            disabled={fxIdx === layer.effects.length - 1}
+                            title="Move Effect Down in Stack"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              studio.reorderEffectOnLayer(layer.id, fxIdx, fxIdx + 1);
+                            }}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            className="studio-btn ghost"
                             style={{ minHeight: 20, padding: '0 5px', color: 'var(--status-err)' }}
                             title="Remove Effect"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               studio.commitProjectChange(`Delete Effect ${fx.name}`, (draft) => {
                                 const l = draft.compositions.find((c) => c.id === draft.activeCompId)?.layers.find((x) => x.id === layer.id);
                                 if (l) l.effects = l.effects.filter((x) => x.id !== fx.id);
@@ -1105,8 +1167,8 @@ export const InspectorAndToolsPanel: React.FC<{ widthPx?: number }> = ({ widthPx
               className="studio-btn"
               onClick={() => {
                 if (!comp) return;
-                const synth = generateSynthAudioBuffer(comp.duration, 8000, 124);
-                const ampProp = convertAudioSamplesToKeyframes(synth, 8000, 12, comp.duration);
+                const mixed = mixCompositionAudioSamples(studio.project, comp, 0, comp.duration, 8000);
+                const ampProp = convertAudioSamplesToKeyframes(mixed, 8000, 12, comp.duration);
                 studio.commitProjectChange('Convert Audio Amplitude to Keyframes', (draft) => {
                   const c = draft.compositions.find((x) => x.id === draft.activeCompId);
                   if (!c) return;

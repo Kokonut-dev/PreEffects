@@ -114,7 +114,12 @@ jobs:
             echo "No installer artifacts found in release-artifacts/" >&2
             exit 1
           fi
-          echo "Publishing ${#FILES[@]} desktop artifacts to release ${TAG}:"
+          : > SHA256SUMS.txt
+          for f in "${FILES[@]}"; do
+            (cd "$(dirname "$f")" && sha256sum "$(basename "$f")") >> SHA256SUMS.txt
+          done
+          FILES+=("SHA256SUMS.txt")
+          echo "Publishing ${#FILES[@]} desktop artifacts (+ SHA256SUMS.txt) to release ${TAG}:"
           printf ' - %s\n' "${FILES[@]}"
           if gh release view "${TAG}" >/dev/null 2>&1; then
             gh release upload "${TAG}" "${FILES[@]}" --clobber
